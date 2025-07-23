@@ -13,18 +13,32 @@ class LoginController extends Controller
     }
 
     public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
+{
+    $credentials = $request->only('email', 'password');
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
+    if (Auth::attempt($credentials)) {
+        $request->session()->regenerate();
+
+        $user = Auth::user();
+
+        // Redirect based on role
+        if ($user->role === 'admin') {
             return redirect()->intended('/admin/dashboard');
+        } elseif ($user->role === 'institute') {
+            return redirect()->intended('/institute/dashboard');
+        } else {
+            Auth::logout();
+            return back()->withErrors([
+                'email' => 'Unauthorized role.',
+            ]);
         }
-
-        return back()->withErrors([
-            'email' => 'The credentials do not match our records.',
-        ]);
     }
+
+    return back()->withErrors([
+        'email' => 'The credentials do not match our records.',
+    ]);
+}
+
 
     public function logout(Request $request)
     {

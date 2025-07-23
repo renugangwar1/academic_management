@@ -25,6 +25,6 @@ class InstituteTemplateExport implements FromArray, WithHeadings
      */
     public function headings(): array
     {
-        return ['name', 'code', 'contact_email', 'contact_phone'];
+        return ['name', 'code', 'email', 'contact_phone'];
     }
 }

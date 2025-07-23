@@ -33,7 +33,7 @@ class InstituteImport implements
             // Cast EVERYTHING to string so validation & DB agree.
             $code          = (string) $row['code'];
             $name          = (string) $row['name'];
-            $contactEmail  = $row['contact_email'] ?? null;
+            $contactEmail  = $row['email'] ?? null;
             $contactPhone  = $row['contact_phone'] ?? null;
 
             // Skip duplicates (or change to updateOrCreate if desired)
@@ -44,7 +44,7 @@ class InstituteImport implements
             Institute::create([
                 'name'           => $name,
                 'code'           => $code,
-                'contact_email'  => $contactEmail,
+                'email'  => $contactEmail,
                 'contact_phone'  => $contactPhone,
                 'password'       => Hash::make('1234inst'),
             ]);
@@ -59,7 +59,7 @@ class InstituteImport implements
         return [
             '*.name'          => 'required|string|max:255',
             '*.code'          => 'required',              // already cast to string
-            '*.contact_email' => 'nullable|email',
+            '*.email' => 'nullable|email',
             '*.contact_phone' => 'nullable|digits_between:6,15',
         ];
     }
@@ -72,7 +72,7 @@ class InstituteImport implements
         return [
             'code'          => 'Institute code',
             'name'          => 'Institute name',
-            'contact_email' => 'Contact email',
+            'email' => 'Contact email',
             'contact_phone' => 'Contact phone',
         ];
     }

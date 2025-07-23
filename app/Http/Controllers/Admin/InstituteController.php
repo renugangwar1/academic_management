@@ -11,7 +11,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InstituteTemplateExport;
 use Maatwebsite\Excel\HeadingRowImport;
 use Maatwebsite\Excel\Validators\ValidationException;
-
+use App\Models\User;
 class InstituteController extends Controller
 {
     public function index(Request $request)
@@ -21,7 +21,7 @@ class InstituteController extends Controller
     if ($search = $request->input('search')) {
         $query->where('name', 'like', "%$search%")
               ->orWhere('code', 'like', "%$search%")
-              ->orWhere('contact_email', 'like', "%$search%")
+              ->orWhere('email', 'like', "%$search%")
               ->orWhere('contact_phone', 'like', "%$search%");
     }
 
@@ -37,26 +37,36 @@ class InstituteController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string',
-            'code' => 'required|string|unique:institutes',
-            'contact_email' => 'nullable|email',
-            'contact_phone' => 'nullable|string',
-          
-        ]);
+{
+    $request->validate([
+        'name' => 'required|string',
+        'code' => 'required|string|unique:institutes',
+        'email' => 'nullable|email|unique:users,email', // prevent email conflict in users table
+        'contact_phone' => 'nullable|string',
+    ]);
 
-        Institute::create([
-            'name' => $request->name,
-            'code' => $request->code,
-            'contact_email' => $request->contact_email,
-            'contact_phone' => $request->contact_phone,
-           'password' => Hash::make('1234inst'),
+    $defaultPassword = '1234inst';
 
-        ]);
+    // Create the institute
+    $institute = Institute::create([
+        'name' => $request->name,
+        'code' => $request->code,
+        'email' => $request->email,
+        'contact_phone' => $request->contact_phone,
+        'password' => Hash::make($defaultPassword),
+    ]);
 
-        return redirect()->route('admin.institutes.index')->with('success', 'Institute created successfully.');
-    }
+    // Create a user login for this institute
+    User::create([
+        'name' => $institute->name,
+        'email' => $institute->email ?? strtolower($institute->code) . '@nchmct.institute', // fallback email
+        'role' => 'institute',
+        'password' => Hash::make($defaultPassword),
+    ]);
+
+    return redirect()->route('admin.institutes.index')
+        ->with('success', 'Institute and login user created successfully.');
+}
 
     public function edit(Institute $institute)
     {
@@ -68,14 +78,14 @@ class InstituteController extends Controller
         $request->validate([
             'name' => 'required|string',
             'code' => 'required|string|unique:institutes,code,' . $institute->id,
-            'contact_email' => 'nullable|email',
+            'email' => 'nullable|email',
             'contact_phone' => 'nullable|string',
             'password' => 'nullable|min:6'
         ]);
 
         $institute->name = $request->name;
         $institute->code = $request->code;
-        $institute->contact_email = $request->contact_email;
+        $institute->email = $request->email;
         $institute->contact_phone = $request->contact_phone;
 
         if ($request->filled('password')) {

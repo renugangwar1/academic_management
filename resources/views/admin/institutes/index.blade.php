@@ -81,7 +81,7 @@
                             <td class="text-muted">{{ $institutes->firstItem() + $index }}</td>
                             <td class="text-start fw-semibold text-primary">{{ $institute->name }}</td>
                             <td><span class="badge bg-info text-dark">{{ $institute->code }}</span></td>
-                            <td class="text-start">{{ $institute->contact_email ?? '-' }}</td>
+                            <td class="text-start">{{ $institute->email ?? '-' }}</td>
                             <td>{{ $institute->contact_phone ?? '-' }}</td>
                             <td>
                                 <a href="{{ route('admin.institutes.edit', $institute->id) }}" class="btn btn-sm btn-outline-primary rounded-pill me-1" data-bs-toggle="tooltip" title="Edit">

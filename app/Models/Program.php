@@ -47,4 +47,6 @@ public function academicSessions()
                 ->withPivot(['structure', 'start_level'])
                 ->withTimestamps();
 }
+
+
 }

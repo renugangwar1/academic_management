@@ -3,26 +3,27 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 
-class Institute extends Model
+class Institute extends Authenticatable
 {
-   use HasFactory;
+    use HasFactory;
 
     protected $fillable = [
         'name',
         'code',
-        'contact_email',
+        'email',
         'contact_phone',
         'password',
     ];
 
-    public function students() {
-    return $this->hasMany(Student::class);
-}
-public function programs()
-{
-    return $this->belongsToMany(Program::class, 'institute_program');
-}
+    public function students()
+    {
+        return $this->hasMany(Student::class);
+    }
 
+    public function programs()
+    {
+        return $this->belongsToMany(Program::class, 'institute_program');
+    }
 }

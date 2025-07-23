@@ -93,6 +93,60 @@
         </div>
     </div>
 </div>
+{{-- Upload Activity --}}
+
+<div class="card shadow-sm mt-5 animate__animated animate__fadeInUp">
+    <div class="card-header bg-secondary text-white d-flex align-items-center">
+        <i class="fas fa-file-upload me-2"></i>
+        <h5 class="mb-0">Recent Student Uploads</h5>
+    </div>
+    <div class="card-body">
+        @if($recentUploads->count())
+            <ul class="list-group">
+                @foreach ($recentUploads as $upload)
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                           <div class="d-flex flex-column">
+    <div>
+        📁 <strong>{{ $upload->institute->name }}</strong> uploaded 
+        <span class="text-info">{{ $upload->filename }}</span>
+        @if($upload->status !== 'approved')
+            <span class="badge bg-warning text-dark">{{ ucfirst($upload->status) }}</span>
+        @else
+            <span class="badge bg-success">Approved</span>
+        @endif
+    </div>
+
+    {{-- Action buttons --}}
+    <div class="mt-2">
+        <a href="{{ route('admin.studentUploads.download', $upload) }}"
+           class="btn btn-sm btn-outline-primary me-2">
+            ⬇️ Download Excel
+        </a>
+
+        @if($upload->status === 'pending')
+            <form action="{{ route('admin.studentUploads.approve', $upload) }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-success">✅ Approve</button>
+            </form>
+            <form action="{{ route('admin.studentUploads.reject', $upload) }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-danger">❌ Reject</button>
+            </form>
+        @endif
+    </div>
+</div>
+
+                        </div>
+                        <span class="badge bg-light text-muted">{{ $upload->created_at->diffForHumans() }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @else
+            <p class="text-muted">No recent uploads.</p>
+        @endif
+    </div>
+</div>
 
 {{-- Optional custom CSS --}}
 @push('styles')
@@ -123,6 +177,20 @@
     }
     a.text-decoration-none:hover .card-body h3 {
         text-decoration: underline;
+    }
+
+      .list-group-item .btn {
+        margin-right: 0.5rem;
+    }
+
+    .badge {
+        font-size: 0.8rem;
+    }  .list-group-item .btn {
+        margin-right: 0.5rem;
+    }
+
+    .badge {
+        font-size: 0.8rem;
     }
 </style>
 @endpush

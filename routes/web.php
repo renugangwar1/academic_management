@@ -1,21 +1,25 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Admin\DashboardController;
+
 use App\Http\Controllers\Admin\InstituteController;
 use App\Http\Controllers\Admin\ProgramController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\AcademicSessionController;
 use App\Http\Controllers\Admin\ResultsController;
 use App\Http\Controllers\Admin\ReappearController;
-use App\Http\Controllers\Admin\StudentController;
+use App\Http\Controllers\Admin\StudentController as AdminStudentController; // ✅ Aliased
 use App\Http\Controllers\Admin\ExaminationController;
 use App\Http\Controllers\Admin\ExamSwitchController;
 use App\Http\Controllers\Admin\RegularMarkController;
 use App\Http\Controllers\Admin\DiplomaMarkController;
 use App\Http\Controllers\Admin\StudentPromotionController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+
+use App\Http\Controllers\Institute\DashboardController as InstituteDashboardController;
+use App\Http\Controllers\Institute\StudentController as InstituteStudentController; // ✅ Aliased
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -34,8 +38,11 @@ Route::middleware(['auth', 'role:admin'])
       ->group(function () {
 
     /* Dashboard */
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
+    // Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+  Route::get('/student-uploads/{upload}/download', [AdminDashboardController::class, 'download'])->name('studentUploads.download');
+    Route::post('/student-uploads/{upload}/approve', [AdminDashboardController::class, 'approve'])->name('studentUploads.approve');
+    Route::post('/student-uploads/{upload}/reject', [AdminDashboardController::class, 'reject'])->name('studentUploads.reject');
     /* Academic session views */
     Route::get('academic_sessions/regular',  [AcademicSessionController::class,'listRegular'])->name('academic_sessions.regular.index');
     Route::get('academic_sessions/diploma',  [AcademicSessionController::class,'listDiploma'])->name('academic_sessions.diploma.index');
@@ -224,3 +231,51 @@ Route::post('/results/aggregate-all', [ResultsController::class, 'aggregateAll']
     Route::get ('academic_sessions/{session}/map-programs',   [AcademicSessionController::class,'mapPrograms'])->name('academic_sessions.mapPrograms');
     Route::post('academic_sessions/{session}/map-programs',   [AcademicSessionController::class,'storeProgramMappings'])->name('academic_sessions.mapPrograms.store');
 });
+
+
+//////////////////////////////////////
+// -------------------------------------
+// INSTITUTE Dashboard
+// -------------------------------------
+////////////////////////////////////////
+
+Route::middleware(['auth', 'role:institute'])
+    ->prefix('institute')
+    ->as('institute.')
+    ->group(function () {
+        Route::get('dashboard', [InstituteDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/examinations', [InstituteDashboardController::class, 'examinations'])->name('examinations');
+        Route::get('/reappears', [InstituteDashboardController::class, 'reappears'])->name('reappears');
+        
+        Route::get('/programs', [\App\Http\Controllers\Institute\ProgramController::class, 'index'])->name('programs.index');
+        Route::get('/programs/{id}', [\App\Http\Controllers\Institute\ProgramController::class, 'show'])->name('programs.show');
+
+        Route::get('/students', [InstituteStudentController::class, 'index'])->name('students.index');
+        Route::get('/students/create', [InstituteStudentController::class, 'create'])->name('students.create');
+        Route::post('/students', [InstituteStudentController::class, 'store'])->name('students.store');
+        Route::post('/students/import', [InstituteStudentController::class, 'import'])->name('students.import');
+      Route::get('/students/download-template', [InstituteStudentController::class, 'downloadTemplate'])
+    ->name('students.downloadTemplate');
+
+        Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');
+    });
+
+//  Route::middleware(['auth:institute'])
+//     ->prefix('institute')
+//     ->as('institute.')
+//     ->group(function () {
+
+//         Route::get('dashboard', [InstituteDashboardController::class, 'index'])->name('dashboard');
+//         Route::get('/examinations', [InstituteDashboardController::class, 'examinations'])->name('examinations');
+//         Route::get('/reappears', [InstituteDashboardController::class, 'reappears'])->name('reappears');
+
+//         Route::get('/programs', [\App\Http\Controllers\Institute\ProgramController::class, 'index'])->name('programs.index');
+//         Route::get('/programs/{id}', [\App\Http\Controllers\Institute\ProgramController::class, 'show'])->name('programs.show');
+
+//         Route::get('/students', [InstituteStudentController::class, 'index'])->name('students.index');
+//         Route::get('/students/create', [InstituteStudentController::class, 'create'])->name('students.create');
+//         Route::post('/students', [InstituteStudentController::class, 'store'])->name('students.store');
+//         Route::post('/students/import', [InstituteStudentController::class, 'import'])->name('students.import');
+//         Route::get('/students/download-template', [InstituteStudentController::class, 'downloadTemplate'])->name('students.downloadTemplate');
+//         Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');
+//     });
