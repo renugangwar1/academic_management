@@ -75,24 +75,77 @@
     {{-- Table --}}
     <div class="table-responsive shadow-sm mb-4" style="overflow-x: auto;">
         <table class="table table-sm table-bordered table-hover align-middle text-center bg-white mb-0">
-            <thead class="table-dark">
-                <tr class="align-middle">
-                    <th>#</th>
-                    <th>NCHM Roll No</th>
-                    <th>Enrolment No</th>
-                    <th>Name</th>
-                    <th>Program</th>
-                    <th>Semester</th>
-                    <th>Institute</th>
-                    <th>Email</th>
-                    <th>Mobile</th>
-                    <th>DOB</th>
-                    <th>Category</th>
-                    <th>Father's Name</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
+           <thead class="table-dark">
+    <tr class="align-middle">
+        <th>#</th>
+        <th>NCHM Roll No</th>
+        <th>Enrolment No</th>
+        <th>Name</th>
+        <th>Program</th>
+        <th>Semester</th>
+        <th>Institute</th>
+        <th>Email</th>
+        <th>Mobile</th>
+        <th>DOB</th>
+        <th>Category</th>
+        <th>Father's Name</th>
+        <th>Status</th>
+        <th>Actions</th>
+    </tr>
+
+    {{-- Filter Row --}}
+    <tr>
+     <form id="columnFilterForm" method="GET" action="{{ route('admin.students.index') }}">
+
+            <td></td>
+            <td><input type="text" name="nchm_roll_number" value="{{ request('nchm_roll_number') }}" class="form-control form-control-sm"></td>
+            <td><input type="text" name="enrolment_number" value="{{ request('enrolment_number') }}" class="form-control form-control-sm"></td>
+            <td><input type="text" name="name" value="{{ request('name') }}" class="form-control form-control-sm"></td>
+
+            {{-- Program --}}
+            <td>
+                <select name="program_id" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @foreach(\App\Models\Program::all() as $program)
+                        <option value="{{ $program->id }}" {{ request('program_id') == $program->id ? 'selected' : '' }}>{{ $program->name }}</option>
+                    @endforeach
+                </select>
+            </td>
+
+            <td><input type="text" name="semester" value="{{ request('semester') }}" class="form-control form-control-sm"></td>
+
+            {{-- Institute --}}
+            <td>
+                <select name="institute_id" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @foreach(\App\Models\Institute::all() as $inst)
+                        <option value="{{ $inst->id }}" {{ request('institute_id') == $inst->id ? 'selected' : '' }}>{{ $inst->name }}</option>
+                    @endforeach
+                </select>
+            </td>
+
+            <td><input type="text" name="email" value="{{ request('email') }}" class="form-control form-control-sm"></td>
+            <td><input type="text" name="mobile" value="{{ request('mobile') }}" class="form-control form-control-sm"></td>
+            <td></td>
+            <td><input type="text" name="category" value="{{ request('category') }}" class="form-control form-control-sm"></td>
+            <td><input type="text" name="father_name" value="{{ request('father_name') }}" class="form-control form-control-sm"></td>
+
+            {{-- Status --}}
+            <td>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="1" {{ request('status') === '1' ? 'selected' : '' }}>Active</option>
+                    <option value="0" {{ request('status') === '0' ? 'selected' : '' }}>Inactive</option>
+                </select>
+            </td>
+
+            <td>
+                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i></button>
+            </td>
+        </form>
+    </tr>
+</thead>
+
             <tbody>
                 @forelse($students as $student)
                     <tr>
@@ -191,3 +244,28 @@
 
 </div>
 @endsection
+@push('scripts')
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById('columnFilterForm');
+        const inputs = form.querySelectorAll('input, select');
+
+        let timeout = null;
+
+        inputs.forEach(input => {
+            if (input.tagName === 'INPUT') {
+                input.addEventListener('keyup', () => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => {
+                        form.submit();
+                    }, 600); // Delay to avoid too frequent reloads
+                });
+            }
+
+            input.addEventListener('change', () => {
+                form.submit();
+            });
+        });
+    });
+</script>
+@endpush

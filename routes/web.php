@@ -19,7 +19,9 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 
 use App\Http\Controllers\Institute\DashboardController as InstituteDashboardController;
 use App\Http\Controllers\Institute\StudentController as InstituteStudentController; // ✅ Aliased
-
+use App\Http\Controllers\Institute\MessageController;
+use App\Http\Controllers\Admin\MessageController as AdminMessageController;
+use Illuminate\Support\Facades\Artisan;
 
 Route::get('/', function () {
     return view('welcome');
@@ -60,11 +62,16 @@ Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dash
     Route::resource('courses',            CourseController::class)->except(['show']);
     Route::resource('academic_sessions',  AcademicSessionController::class);
     Route::resource('reappears',          ReappearController::class);
-    Route::resource('students',           StudentController::class)->except(['show']);
+    Route::resource('students',            AdminStudentController::class)->except(['show']);
 Route::post('/institutes/bulk-upload', [App\Http\Controllers\Admin\InstituteController::class, 'bulkUpload'])->name('institutes.bulk-upload');
 Route::get('/institutes/template',
     [App\Http\Controllers\Admin\InstituteController::class, 'downloadTemplate']
 )->name('institutes.template');
+  Route::post('add-users', [InstituteController::class, 'bulkAddUsers'])->name('add-users');
+
+
+
+
 
     /* Program extras */
     Route::get('/programs/{program}/settings', [ProgramController::class,'settings'])->name('programs.settings');
@@ -75,18 +82,24 @@ Route::get('/institutes/template',
     Route::post('/programs/{program}/institutes',[ProgramController::class,'updateInstitutes'])->name('programs.institutes.update');
 
     /* Student import/export */
-    Route::post('/students/import',                       [StudentController::class,'import'])->name('students.import');
-    Route::get ('/students/template-download/{program}',  [StudentController::class,'downloadTemplate'])->name('students.template.download');
+   Route::post('/students/import/{programId}', [AdminStudentController::class, 'import'])->name('students.import');
+Route::get('/students/export', [AdminStudentController::class, 'export'])->name('students.export');
+
     Route::get ('/programs/{id}/import-students',         [ProgramController::class,'showImportForm'])->name('programs.import.form');
     Route::post('/programs/{id}/import-students',         [ProgramController::class,'importStudents'])->name('programs.import');
     Route::get ('/programs/{id}/students-template',       [ProgramController::class,'downloadStudentTemplate'])->name('programs.students.template');
     Route::get ('/programs/{id}/students/export',         [ProgramController::class,'exportStudents'])->name('programs.students.export');
-    Route::get ('/students/export',                       [StudentController::class,'export'])->name('students.export');
+    Route::get ('/students/export',                       [AdminStudentController::class,'export'])->name('students.export');
 /*promote students*/
  Route::get('/promotions/selection', [StudentPromotionController::class, 'promote'])->name('promote.selection');
-    Route::post('/promotions/manual', [StudentPromotionController::class, 'promoteManual'])->name('promote.manual');
+   
     Route::post('/promotions/single/{studentId}', [StudentPromotionController::class, 'promoteSingle'])->name('promote.single');
 Route::post('/students/promote', [StudentPromotionController::class, 'promote'])->name('promote');
+Route::get('/promotions/manual', [StudentPromotionController::class, 'promoteManual'])
+    ->name('promotions.manual'); 
+Route::post('/promotions/manual', [StudentPromotionController::class, 'promoteManual'])
+    ->name('promote.manual.submit');
+Route::get('/promotions/session-summary', [StudentPromotionController::class, 'listProgramSemesterSessions'])->name('promotions.sessions');
 
     /* Assigned courses */
     Route::get ('/programs/{id}/assign-courses',            [ProgramController::class,'showAssignCoursesForm'])->name('programs.assign.courses');
@@ -116,22 +129,32 @@ Route::post('/courses/bulk-map', [CourseController::class, 'bulkMapStore'])
 
 
 
-
+Route::post('/reappears/download-one', [ReappearController::class, 'downloadReappearSingle'])->name('admitcard.reappear.single');
        Route::get('examination', [ExamSwitchController::class, 'dashboard'])->name('examination.index');
 Route::match(['get', 'post'], 'switch/{type}', [ExamSwitchController::class, 'switch'])
     ->whereIn('type', ['regular', 'diploma'])
     ->name('programme.switch');
 
+
+
+Route::get('/messages', [App\Http\Controllers\Admin\MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/chat/{institute_id}', [App\Http\Controllers\Admin\MessageController::class, 'chat'])->name('messages.chat');
+Route::post('/messages/{id}/reply', [App\Http\Controllers\Admin\MessageController::class, 'reply'])->name('messages.reply');
+
+Route::post('/exam/set-session', [ExaminationController::class, 'setExamSession'])->name('exam.setSession');
+
 /* ────────────── REGULAR ROUTES ────────────── */
 Route::prefix('regular')->as('regular.')->group(function () {
     // View Routes
     Route::get('exams/index', [ExaminationController::class, 'indexRegular'])->name('exams.index');
-    Route::get('exams/{session}/marks-upload', [ExaminationController::class, 'uploadMarksRegular'])
-        ->whereNumber('session')->name('exams.marks.upload');
-    Route::get('exams/{session}/admit-card', [ExaminationController::class, 'generateAdmitCard'])
-        ->whereNumber('session')->name('exams.admitcard');
-    Route::get('exams/results/{session}', [ExaminationController::class, 'showResultPageRegular'])
-        ->whereNumber('session')->name('exams.results');
+  Route::get('/exams/marks-upload/{session}', [ExaminationController::class, 'uploadMarksRegular'])
+    ->name('exams.marks.upload');
+
+    Route::get('exams/admit-card', [ExaminationController::class, 'generateAdmitCard'])
+       ->name('exams.admitcard');
+   Route::get('exams/results', [ExaminationController::class, 'showResultPageRegular'])
+    ->name('exams.results');
+
 
     // POST Actions
     Route::post('exams/upload-marks', [RegularMarkController::class, 'handleUploadMarksRegular'])->name('exams.upload-marks.file');
@@ -149,9 +172,11 @@ Route::prefix('regular')->as('regular.')->group(function () {
 
     // Downloads
     Route::get('exams/results/download-excel', [ResultsController::class, 'downloadExcelRegular'])->name('exams.results.download');
-    Route::get('exams/results/{program_id}/{semester}/external-download-excel', [ResultsController::class, 'downloadExternalResultsRegular'])->name('exams.external-results.download');
+Route::get('/admin/exams/external-results/download/{academic_session_id}/{program_id}/{semester}', 
+    [ResultsController::class, 'downloadExternalResults']
+)->name('admin.exams.external-results.download');
 
-    // Templates
+    // Templatesfinalize.marks
     Route::get('exams/download-template', [RegularMarkController::class, 'downloadTemplate'])->name('exams.template');
 
 Route::get('/exams/view-result', [ExaminationController::class, 'viewResult'])->name('exams.results.view');
@@ -208,6 +233,7 @@ Route::get('/exams/external-results/download', [ResultsController::class, 'downl
 
 Route::post('/exams/results/publish', [ResultsController::class, 'publish'])
     ->name('exams.results.publish');
+Route::get('/ajax/fetch-courses', [ExaminationController::class, 'fetchCourses']);
 
 
 
@@ -226,6 +252,7 @@ Route::post('/results/aggregate-all', [ResultsController::class, 'aggregateAll']
     Route::post('/admitcard/single',       [ExaminationController::class,'downloadSingleAdmitCard'])->name('admitcard.single');
     Route::post('/reappears/download',     [ReappearController::class,'downloadReappear'])->name('admitcard.reappear');
     Route::post('/reappears/download-one', [ReappearController::class,'downloadReappearSingle'])->name('admitcard.reappear.single');
+Route::get('/ajax/academic-sessions/{program}', [\App\Http\Controllers\Admin\ReappearController::class, 'getAcademicSessionsByProgram']);
 
     /* Academic session ↔ program mapping */
     Route::get ('academic_sessions/{session}/map-programs',   [AcademicSessionController::class,'mapPrograms'])->name('academic_sessions.mapPrograms');
@@ -258,6 +285,12 @@ Route::middleware(['auth', 'role:institute'])
     ->name('students.downloadTemplate');
 
         Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');
+
+ Route::get('message', [MessageController::class, 'create'])->name('message.index'); // optional alias
+
+        Route::post('message', [MessageController::class, 'store'])->name('message.store');
+        Route::get('message/create', [MessageController::class, 'create'])->name('message.create');
+
     });
 
 //  Route::middleware(['auth:institute'])
@@ -279,3 +312,16 @@ Route::middleware(['auth', 'role:institute'])
 //         Route::get('/students/download-template', [InstituteStudentController::class, 'downloadTemplate'])->name('students.downloadTemplate');
 //         Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');
 //     });
+
+Route::post('admin/users/store-from-institute', [App\Http\Controllers\Admin\UserController::class, 'storeFromInstitute'])
+    ->name('admin.users.store-from-institute')
+    ->middleware('auth', 'role:admin');
+Route::post('/admin/clear-cache', function () {
+    Artisan::call('view:clear');
+    Artisan::call('config:clear');
+    Artisan::call('cache:clear');
+    Artisan::call('route:clear');
+
+    return back()->with('success', 'All caches cleared successfully!');
+})->name('admin.clear.cache')->middleware('auth');
+

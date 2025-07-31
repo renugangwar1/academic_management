@@ -10,31 +10,64 @@ use App\Exports\StudentsTemplateExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Str;
 use App\Exports\FilteredStudentsExport;
+use App\Models\StudentSessionHistory; 
 
 class StudentController extends Controller
 {
-    public function index(Request $request)
-    {
-        $perPage = $request->get('per_page', 15);
+   public function index(Request $request)
+{
+    $perPage = $request->get('per_page', 15);
 
-        $students = Student::with(['program', 'institute', 'academicSession'])
-            ->when($request->program_id, fn($q) => $q->where('program_id', $request->program_id))
-            ->when($request->academic_session_id, fn($q) => $q->where('academic_session_id', $request->academic_session_id))
-            ->when($request->semester, fn($q) => $q->where('semester', $request->semester))
-            ->when($request->year, fn($q) => $q->where('year', $request->year))
-            ->when($request->search, function ($q) use ($request) {
-                $s = $request->search;
-                $q->where(fn($x) => $x->where('name', 'like', "%$s%")
-                    ->orWhere('nchm_roll_number', 'like', "%$s%")
-                    ->orWhere('enrolment_number', 'like', "%$s%")
-                    ->orWhere('email', 'like', "%$s%")
-                    ->orWhere('mobile', 'like', "%$s%"));
-            })
-            ->paginate($perPage)
-            ->appends($request->all());
+    $students = Student::with(['program', 'institute', 'academicSession'])
+        ->when($request->program_id, fn($q) => $q->where('program_id', $request->program_id))
+        ->when($request->institute_id, fn($q) => $q->where('institute_id', $request->institute_id))
+        // ->when($request->semester, fn($q) => $q->where('semester', $request->semester))
+        // ->when($request->year, fn($q) => $q->where('year', $request->year))
+        // ->when($request->academic_session_id, fn($q) => $q->where('academic_session_id', $request->academic_session_id))
+->when($request->semester, function ($q) use ($request) {
+    $q->whereHas('sessionHistories', function ($h) use ($request) {
+        $h->where('to_semester', $request->semester)
+          ->orWhere('from_semester', $request->semester);
+    });
+})
+->when($request->academic_session_id, function ($q) use ($request) {
+    $q->whereHas('sessionHistories', function ($h) use ($request) {
+        $h->where('academic_session_id', $request->academic_session_id);
+    });
+})
+->when($request->year, function ($q) use ($request) {
+    $q->whereHas('sessionHistories.academicSession', function ($h) use ($request) {
+        $h->where('year', $request->year);
+    });
+})
 
-        return view('admin.students.index', compact('students', 'perPage'));
-    }
+        // Column-wise filters
+        ->when($request->nchm_roll_number, fn($q) => $q->where('nchm_roll_number', 'like', '%' . $request->nchm_roll_number . '%'))
+        ->when($request->enrolment_number, fn($q) => $q->where('enrolment_number', 'like', '%' . $request->enrolment_number . '%'))
+        ->when($request->name, fn($q) => $q->where('name', 'like', '%' . $request->name . '%'))
+        ->when($request->email, fn($q) => $q->where('email', 'like', '%' . $request->email . '%'))
+        ->when($request->mobile, fn($q) => $q->where('mobile', 'like', '%' . $request->mobile . '%'))
+        ->when($request->category, fn($q) => $q->where('category', 'like', '%' . $request->category . '%'))
+        ->when($request->father_name, fn($q) => $q->where('father_name', 'like', '%' . $request->father_name . '%'))
+        ->when($request->status !== null, fn($q) => $q->where('status', $request->status))
+
+        // Global search (optional)
+        ->when($request->search, function ($q) use ($request) {
+            $s = $request->search;
+            $q->where(function ($x) use ($s) {
+                $x->where('name', 'like', "%$s%")
+                  ->orWhere('nchm_roll_number', 'like', "%$s%")
+                  ->orWhere('enrolment_number', 'like', "%$s%")
+                  ->orWhere('email', 'like', "%$s%")
+                  ->orWhere('mobile', 'like', "%$s%");
+            });
+        })
+        ->paginate($perPage)
+        ->appends($request->all());
+
+    return view('admin.students.index', compact('students', 'perPage'));
+}
+
 
     public function create()
     {
@@ -44,30 +77,48 @@ class StudentController extends Controller
         ]);
     }
 
-    public function store(Request $request)
-    {
-        $program = Program::findOrFail($request->program_id);
-        $structure = $program->structure;
+  public function store(Request $request)
+{
+    $program = Program::findOrFail($request->program_id);
+    $structure = $program->structure;
 
-        $rules = $this->getValidationRules($structure);
-        $validated = $request->validate($rules);
-        $validated['status'] = $request->boolean('status');
+    $rules = $this->getValidationRules($structure);
+    $validated = $request->validate($rules);
+    $validated['status'] = $request->boolean('status');
 
-        // Normalize semester/year values
-        $validated = $this->normalizeLevelFields($validated);
+    // Normalize semester/year values
+    $validated = $this->normalizeLevelFields($validated);
 
-        // Resolve or create academic session
-        $session = AcademicSession::firstOrCreate(
-            ['year' => $request->year, 'term' => $request->term],
-            ['odd_even' => $request->term === 'July' ? 'odd' : 'even']
-        );
-        $validated['academic_session_id'] = $session->id;
-        unset($validated['year'], $validated['term']);
+    // Resolve or create academic session
+    $session = AcademicSession::firstOrCreate(
+        ['year' => $request->year, 'term' => $request->term],
+        ['odd_even' => $request->term === 'July' ? 'odd' : 'even']
+    );
 
-        Student::create($validated);
+    $validated['academic_session_id'] = $session->id;
+    $validated['original_academic_session_id'] = $session->id;
 
-        return redirect()->route('admin.students.index')->with('success', 'Student added successfully.');
-    }
+    unset($validated['year'], $validated['term']);
+
+    // 1️⃣ Create student
+    $student = Student::create($validated);
+
+    // 2️⃣ Log the initial semester into session history
+    StudentSessionHistory::create([
+        'student_id'           => $student->id,
+        'academic_session_id'  => $student->academic_session_id,
+        'program_id'           => $student->program_id,
+        'institute_id'         => $student->institute_id,
+        'from_semester'        => null,
+        'to_semester'          => $student->semester,
+           'semester'             => $student->semester, // ← this may be null if yearly, so adjust if needed
+        'promotion_type'       => 'initial',
+        'promoted_by'          => auth()->id() ?? null,
+        'promoted_at'          => now(),
+    ]);
+
+    return redirect()->route('admin.students.index')->with('success', 'Student added successfully.');
+}
 
     public function edit(Student $student)
     {

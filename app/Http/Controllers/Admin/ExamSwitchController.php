@@ -17,45 +17,30 @@ class ExamSwitchController extends Controller
      *     unless none exists yet.
      * 3.  If we still don’t have a session for this type, fall back to the *oldest* active one.
      */
-    public function switch(string $type, Request $request)
-    {
-        abort_if(!in_array($type, ['regular', 'diploma']), 404);
+   public function switch(string $type, Request $request)
+{
+    abort_if(!in_array($type, ['regular', 'diploma']), 404);
 
-        // ①  — explicit choice via dropdown / link --------------------------------------
-        if ($request->filled('session_id')) {
-            $chosen = AcademicSession::where('id', $request->input('session_id'))
-                       ->where('type', $type)->firstOrFail();
+    // Only store the session if explicitly provided in request
+    if ($request->filled('session_id')) {
+        $chosen = AcademicSession::where('id', $request->input('session_id'))
+                   ->where('type', $type)
+                   ->firstOrFail();
 
-            session([
-                'exam_type'       => $type,
-                'exam_session_id' => $chosen->id,
-            ]);
-        }
-
-        // ②  — keep whatever we already have for this type ------------------------------
-        elseif (session('exam_type') === $type && session()->has('exam_session_id')) {
-            // nothing to do – user has already selected a session for this programme‑type
-        }
-
-        // ③  — final fallback: use the *oldest* active session so a freshly‑created one
-        //      never hijacks the dashboard automatically.
-        else {
-            $fallback = AcademicSession::where('type', $type)
-                        ->where('active', 1)
-                        ->oldest('id')
-                        ->firstOrFail();
-
-            session([
-                'exam_type'       => $type,
-                'exam_session_id' => $fallback->id,
-            ]);
-        }
-
-        /** Redirect the user back to the relevant examination home page */
-        return $type === 'regular'
-            ? redirect()->route('admin.regular.exams.index')
-            : redirect()->route('admin.diploma.exams.index');
+        session([
+            'exam_type'       => $type,
+            'exam_session_id' => $chosen->id,
+        ]);
     }
+
+    // DO NOT do anything if session_id is not provided
+    // and do NOT auto-select any fallback session
+
+    return $type === 'regular'
+        ? redirect()->route('admin.regular.exams.index')
+        : redirect()->route('admin.diploma.exams.index');
+}
+
 
     /**
      * Card dashboard showing the two programme types.
@@ -75,6 +60,7 @@ class ExamSwitchController extends Controller
 
         return view('admin.examination.dashboard', compact('regularSession', 'diplomaSession'));
     }
+    
 
     
 }

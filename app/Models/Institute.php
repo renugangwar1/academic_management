@@ -26,4 +26,10 @@ class Institute extends Authenticatable
     {
         return $this->belongsToMany(Program::class, 'institute_program');
     }
+
+    public function messages()
+{
+    return $this->hasMany(\App\Models\Message::class);
+}
+
 }

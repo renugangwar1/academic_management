@@ -21,6 +21,9 @@ use App\Exports\ExternalResultsExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\AggregatedResult;
 use Illuminate\Support\Facades\Log;
+use App\Models\Course;
+use App\Models\Institute;
+
 
 class ResultsController extends Controller
 {
@@ -48,11 +51,12 @@ class ResultsController extends Controller
     $sessions  = AcademicSession::where('type', 'regular')
                     ->orderByDesc('year')
                     ->get(['id', 'year']);
-
+  $institutes = Institute::all();
     return view('admin.examination.regular.results', [
         'session'    => $session,
         'sessions'   => $sessions,
         'programs'   => $programs,
+         'institutes' => $institutes,
         'programId'  => null,   // default empty
         'semester'   => null,   // default empty
         'program'    => null,
@@ -66,43 +70,68 @@ class ResultsController extends Controller
 
 
 
-    /**
- * Return students, courses and a quick‑lookup index of marks
- */
-public function marksMatrix(int $programId, int $semester)
+
+public function marksMatrix($programId, $semester)
 {
-    // 1. courses offered in this semester
-    $courses = Program::findOrFail($programId)
-        ->courses()
-        ->wherePivot('semester', $semester)
-        ->orderBy('course_code')
-        ->get(['courses.id', 'courses.course_code']); // fixed
-
-    // 2. students in that program / semester
     $students = Student::where('program_id', $programId)
-                       ->where('semester', $semester)
-                       ->orderBy('nchm_roll_number')
-                       ->get(['id', 'nchm_roll_number', 'name']);
+        ->where('status', 1) // Only active students
+        ->orderBy('name')
+        ->get();
 
-    // 3. all related marks in ONE query
-    $marks = Mark::whereIn('student_id', $students->pluck('id'))
-                 ->whereIn('course_id',  $courses->pluck('id'))
-                 ->get(['student_id', 'course_id', 'internal', 'external']);
+    $program = Program::findOrFail($programId);
 
-    // 4. index marks by [student][course]
-    $index = [];
-    foreach ($marks as $m) {
-        $index[$m->student_id][$m->course_id] = $m;
+$courses = $program->courses()
+    ->wherePivot('semester', $semester)
+    ->orderBy('course_code')  // or 'code' if your column is named that
+    ->get();
+
+    // Eager load marks for these students
+    $studentIds = $students->pluck('id');
+    $marks = Mark::whereIn('student_id', $studentIds)
+        ->where('semester', $semester)
+        ->with('course')
+        ->get()
+        ->groupBy('student_id');
+
+    $matrix = [];
+
+    foreach ($students as $student) {
+        $studentMarks = $marks[$student->id] ?? collect();
+
+        $courseMarks = [];
+
+        foreach ($courses as $course) {
+            $mark = $studentMarks->firstWhere('course_id', $course->id);
+
+            $courseMarks[] = [
+                'course_id'   => $course->id,
+                'code'        => $course->code,
+                'title'       => $course->title,
+                'internal'    => $mark->internal ?? null,
+                'external'    => $mark->external ?? null,
+                'attendance'  => $mark->attendance ?? null,
+                'total'       => $mark->total ?? null,
+            ];
+        }
+
+        $matrix[] = [
+            'student' => $student,
+            'marks'   => $courseMarks,
+        ];
     }
 
-    return compact('students', 'courses', 'index');
+    return [
+        'students' => $students,
+        'courses'  => $courses,
+        'matrix'   => $matrix,
+    ];
 }
 
 
 public function compileFinalResultsRegular(Request $request, $sessionId)
 {
     Log::info("▶️ Entered compileFinalResultsRegular", [
-        'request' => $request->all(),
+        'request'   => $request->all(),
         'sessionId' => $sessionId
     ]);
 
@@ -117,7 +146,6 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
 
     if ($validated['action'] === 'show') {
         Log::info("👁 Showing results page, not compiling.");
-
         $viewData = [
             'session'   => AcademicSession::findOrFail($sessionId),
             'sessions'  => AcademicSession::where('type', 'regular')->orderByDesc('year')->get(['id', 'year']),
@@ -130,10 +158,9 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
         return view('admin.examination.regular.results', $viewData);
     }
 
-    // Fetch students
     $studentIds = Student::where('program_id', $programId)
-                         ->where('semester', $semester)
-                         ->pluck('id');
+        ->where('semester', $semester)
+        ->pluck('id');
 
     Log::info("👨‍🎓 Found students", ['count' => $studentIds->count(), 'ids' => $studentIds]);
 
@@ -141,10 +168,10 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
         return back()->withErrors(['compile_error' => '❌ No students found for this program and semester.']);
     }
 
-    // Fetch marks
     $marks = Mark::whereIn('student_id', $studentIds)
-                 ->where('semester', $semester)
-                 ->get(['student_id', 'course_id', 'internal', 'external', 'attendance']);
+        ->where('semester', $semester)
+        ->where('session_id', $sessionId)
+        ->get(['student_id', 'course_id', 'internal', 'external', 'attendance']);
 
     Log::info("📝 Found marks", ['count' => $marks->count()]);
 
@@ -153,11 +180,11 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
         $markIndex[$m->student_id][$m->course_id] = $m;
     }
 
-    // Fetch courses
     $courses = Program::findOrFail($programId)
-                      ->courses()
-                      ->wherePivot('semester', $semester)
-                      ->get(['courses.id', 'courses.credit_value', 'courses.has_external']);
+        ->courses()
+        ->wherePivot('semester', $semester)
+        ->with('component') // must have courseComponent or component relationship
+        ->get(['courses.id', 'courses.credit_value', 'courses.has_external']);
 
     Log::info("📚 Courses found", ['count' => $courses->count(), 'ids' => $courses->pluck('id')]);
 
@@ -165,44 +192,36 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
         return back()->withErrors(['compile_error' => '❌ No courses assigned to this semester for the program.']);
     }
 
-    // Check for missing marks
     $defaultedMarks = [];
 
-foreach ($studentIds as $sid) {
-    foreach ($courses as $course) {
-        $m = $markIndex[$sid][$course->id] ?? null;
+    foreach ($studentIds as $sid) {
+        foreach ($courses as $course) {
+            $m = $markIndex[$sid][$course->id] ?? null;
 
-        if (!$m) {
-            // Create a fake mark object if it's missing entirely
-            $m = new \stdClass();
-            $m->student_id = $sid;
-            $m->course_id = $course->id;
-            $m->internal = 0;
-            $m->external = 0;
-            $m->attendance = 0;
-            $markIndex[$sid][$course->id] = $m;
-            $defaultedMarks[] = "Student ID {$sid} - Course ID {$course->id} (created with 0s)";
-        } else {
-            if (is_null($m->internal)) {
+            if (!$m) {
+                $m = new \stdClass();
+                $m->student_id = $sid;
+                $m->course_id = $course->id;
                 $m->internal = 0;
-                $defaultedMarks[] = "Student ID {$sid} - Course ID {$course->id} (internal defaulted)";
-            }
-            if (is_null($m->external)) {
                 $m->external = 0;
-                $defaultedMarks[] = "Student ID {$sid} - Course ID {$course->id} (external defaulted)";
-            }
-            if (is_null($m->attendance)) {
                 $m->attendance = 0;
-                $defaultedMarks[] = "Student ID {$sid} - Course ID {$course->id} (attendance defaulted)";
+                $markIndex[$sid][$course->id] = $m;
+                $defaultedMarks[] = "Student {$sid} - Course {$course->id} created with default 0s";
+            } else {
+                foreach (['internal', 'external', 'attendance'] as $key) {
+                    if (is_null($m->$key)) {
+                        $m->$key = 0;
+                        $defaultedMarks[] = "Student {$sid} - Course {$course->id}: {$key} set to 0";
+                    }
+                }
             }
         }
     }
-}
 
-if (!empty($defaultedMarks)) {
-    Log::warning("⚠️ Defaulted missing marks to zero", $defaultedMarks);
-    session()->flash('warning', '⚠️ Some missing marks were treated as 0.');
-}
+    if (!empty($defaultedMarks)) {
+        Log::warning("⚠️ Defaulted missing/null marks", $defaultedMarks);
+        session()->flash('warning', '⚠️ Some missing marks were treated as 0.');
+    }
 
     $errors = [];
     Log::info("🚀 Beginning DB transaction...");
@@ -215,40 +234,26 @@ if (!empty($defaultedMarks)) {
                 foreach ($courses as $course) {
                     try {
                         $m = $markIndex[$sid][$course->id] ?? null;
+                        if (!$m) continue;
 
-                        if (!$m || is_null($m->internal) || is_null($m->external)) {
-                            continue;
-                        }
+                        $component = $course->component;
+                        $attendance = (!is_null($component?->attendance_max)) ? (int) $m->attendance : 0;
+                        $externalPassing = $component->external_min ?? 30;
 
                         $cg = new CourseGrade(
                             (float) $course->credit_value,
                             (int) $m->internal,
                             (int) $m->external,
-                            (int) $m->attendance
+                            $attendance,
+                            $externalPassing
                         );
 
                         $courseGrades[] = $cg;
 
-                        // External calculation
-                        $externalMarks = null;
-                        $externalMax = null;
-                        $externalPercentage = null;
-
-                        if ($course->has_external) {
-                            $markRecord = Mark::where([
-                                'student_id' => $sid,
-                                'course_id'  => $course->id,
-                                'session_id' => $sessionId,
-                                'semester'   => $semester,
-                            ])->first();
-
-                            $externalMarks = $markRecord?->external;
-                            $externalMax   = optional($course->courseComponent)->external_max;
-
-                            if (is_numeric($externalMarks) && is_numeric($externalMax) && $externalMax > 0) {
-                                $externalPercentage = round(($externalMarks / $externalMax) * 100, 2);
-                            }
-                        }
+                        $externalMax = $component?->external_max;
+                        $percentage = (is_numeric($m->external) && is_numeric($externalMax) && $externalMax > 0)
+                            ? round(($m->external / $externalMax) * 100, 2)
+                            : null;
 
                         $existing = ExternalResult::where([
                             'student_id' => $sid,
@@ -265,6 +270,7 @@ if (!empty($defaultedMarks)) {
                                 'semester'   => $semester,
                             ],
                             [
+                                 'academic_session_id' => $sessionId, 
                                 'internal'        => $cg->internal,
                                 'external'        => $cg->external,
                                 'attendance'      => $cg->attendance,
@@ -272,16 +278,15 @@ if (!empty($defaultedMarks)) {
                                 'credit'          => $cg->credit,
                                 'grade_point'     => $cg->gradePoint,
                                 'grade_letter'    => $cg->gradeLetter,
-                             'result_status'   => ($cg->external < ($course->courseComponent->external_min ?? 30)) ? 'FAIL' : $cg->status,
+                                'result_status'   => ($cg->external < $externalPassing) ? 'FAIL' : $cg->status,
                                 'exam_attempt'    => $existing?->exam_attempt ?? 1,
-                                'obtained_marks'  => $externalMarks,
+                                'obtained_marks'  => $m->external,
                                 'total_marks'     => $externalMax,
-                                'percentage'      => $externalPercentage,
+                                'percentage'      => $percentage,
                             ]
                         );
-
                     } catch (\Exception $e) {
-                        $errors[] = "Error for Student ID {$sid}, Course ID {$course->id}: " . $e->getMessage();
+                        $errors[] = "❌ Error for Student ID {$sid}, Course ID {$course->id}: " . $e->getMessage();
                         Log::error("❌ ExternalResult Error [Student: $sid, Course: {$course->id}]: " . $e->getMessage());
                         continue;
                     }
@@ -296,15 +301,16 @@ if (!empty($defaultedMarks)) {
                     $sgpa = SemesterGpa::sgpa($courseGrades);
                     $semCredits = array_sum(array_column($courseGrades, 'credit'));
 
-                    $allSgpas = ResultsSummary::where('student_id', $sid)
+                    $previousSgpas = ResultsSummary::where('student_id', $sid)
                         ->where('semester', '<', $semester)
                         ->pluck('sgpa')->filter()->toArray();
 
-                    $cgpa = SemesterGpa::cgpa([...$allSgpas, $sgpa]);
+                    $cgpa = SemesterGpa::cgpa([...$previousSgpas, $sgpa]);
 
-                    $prev = ResultsSummary::where('student_id', $sid)
+                    $prevSummary = ResultsSummary::where('student_id', $sid)
                         ->where('semester', '<', $semester)
-                        ->orderByDesc('semester')->first();
+                        ->orderByDesc('semester')
+                        ->first();
 
                     ResultsSummary::updateOrCreate(
                         ['student_id' => $sid, 'semester' => $semester],
@@ -312,26 +318,22 @@ if (!empty($defaultedMarks)) {
                             'program_id'         => $programId,
                             'sgpa'               => $sgpa,
                             'cgpa'               => $cgpa,
-                            'cumulative_credits' => ($prev->cumulative_credits ?? 0) + $semCredits,
+                            'cumulative_credits' => ($prevSummary->cumulative_credits ?? 0) + $semCredits,
                         ]
                     );
 
                     ExternalResult::where('student_id', $sid)
                         ->where('semester', $semester)
-                        ->get()
                         ->each(function ($result) use ($sgpa, $cgpa) {
-                            if (!$result->grade_letter) {
-                                $result->grade_letter = ExternalResult::calculateGradeLetter($result->total);
-                            }
+                            $result->grade_letter ??= ExternalResult::calculateGradeLetter($result->total);
                             $result->sgpa = $sgpa;
                             $result->cgpa = $cgpa;
                             $result->save();
                         });
 
                     Log::info("✅ Result compiled for student: $sid");
-
                 } catch (\Exception $e) {
-                    $errors[] = "SGPA/CGPA update failed for Student ID {$sid}: " . $e->getMessage();
+                    $errors[] = "❌ SGPA/CGPA update failed for Student ID {$sid}: " . $e->getMessage();
                     Log::error("❌ SGPA/CGPA Error [Student: $sid]: " . $e->getMessage());
                     continue;
                 }
@@ -351,7 +353,6 @@ if (!empty($defaultedMarks)) {
         return back()->withErrors(['db_error' => '❌ Something went wrong during result compilation.']);
     }
 }
-
 
 
 
@@ -492,85 +493,187 @@ public function aggregateAll(Request $request)
     return back()->with('success', 'Aggregated results compiled for all students in the program.');
 }
 
-
-
+///////////////////////
+// final result download in the calculated result page
+//////////////////////
 public function downloadExcel(Request $request)
 {
     $request->validate([
+        'academic_session_id' => 'required|exists:academic_sessions,id',
         'program_id' => 'required|exists:programs,id',
         'semester'   => 'required|integer|min:1|max:10',
     ]);
 
+    $sessionId = $request->input('academic_session_id'); // ✅ Add this
     $programId = $request->input('program_id');
     $semester  = $request->input('semester');
 
     return Excel::download(
-        new ExternalResultsExport($programId, $semester),
+        new ExternalResultsExport($sessionId, $programId, $semester), // ✅ Now 3 args
         "external_results_program_{$programId}_sem_{$semester}.xlsx"
     );
 }
 
 
+// public function showCalculatedResults(Request $request)
+// {
+//     // Optional filters from request — customize as needed
+//     $filterType = $request->input('type');         // e.g., 'regular', 'diploma', etc.
+//     $filterActive = $request->input('active');     // 1 or 0
+//     $filterOddEven = $request->input('odd_even');  // 'odd' or 'even'
+
+//     // Build base query for academic sessions with filters
+//     $sessionQuery = AcademicSession::query();
+
+//     if ($filterType) {
+//         $sessionQuery->where('type', $filterType);
+//     }
+
+//     if (!is_null($filterActive)) {
+//         $sessionQuery->where('active', $filterActive);
+//     }
+
+//     if ($filterOddEven) {
+//         $sessionQuery->where('odd_even', $filterOddEven);
+//     }
+
+//     // Get all sessions with filters, ordered for dropdown
+//     $sessions = $sessionQuery->orderByDesc('year')
+//         ->orderBy('term')
+//         ->get()
+//         ->map(function ($session) {
+//             $session->display = $session->year . ' - ' . $session->term
+//                 . ($session->type ? ' (' . $session->type . ')' : '')
+//                 . ($session->odd_even ? ' [' . ucfirst($session->odd_even) . ']' : '');
+//             return $session;
+//         });
+
+//     // Get latest session from filtered sessions, or fallback if none
+//     $currentSession = $sessions->first() ?? AcademicSession::orderByDesc('id')->first();
+
+//     // Fetch ExternalResult groups by joining students (to get academic_session_id)
+//     $groups = ExternalResult::select(
+//             'external_results.program_id',
+//             'external_results.semester',
+//             'students.academic_session_id'
+//         )
+//         ->join('students', 'external_results.student_id', '=', 'students.id')
+//         // Join academic_sessions to filter groups by academic sessions matching filters
+//         ->join('academic_sessions', 'students.academic_session_id', '=', 'academic_sessions.id')
+//         // Apply the same filters to academic_sessions here
+//         ->when($filterType, fn($q) => $q->where('academic_sessions.type', $filterType))
+//         ->when(!is_null($filterActive), fn($q) => $q->where('academic_sessions.active', $filterActive))
+//         ->when($filterOddEven, fn($q) => $q->where('academic_sessions.odd_even', $filterOddEven))
+//         ->with('program')
+//         ->groupBy('external_results.program_id', 'external_results.semester', 'students.academic_session_id')
+//         ->orderBy('students.academic_session_id', 'desc')
+//         ->orderBy('external_results.program_id')
+//         ->orderBy('external_results.semester')
+//         ->get();
+
+//     // Get academic sessions for groups (for display in blade)
+//     $academicSessions = AcademicSession::whereIn('id', $groups->pluck('academic_session_id')->unique())
+//         ->get()
+//         ->keyBy('id');
+
+//     return view('admin.examination.regular.calculated_results', [
+//         'groups'           => $groups,
+//         'academicSessions' => $academicSessions,
+//         'academicYear'     => 'Filtered Sessions',
+//         'sessions'         => $sessions,
+//         'currentSession'   => $currentSession,
+//         // Pass filters back to view to keep filter state (optional)
+//         'filterType'       => $filterType,
+//         'filterActive'     => $filterActive,
+//         'filterOddEven'    => $filterOddEven,
+//     ]);
+// }
+
+
 public function showCalculatedResults(Request $request)
 {
-    // Step 1: Determine academic year to show (from request or latest)
-    $yearToShow = $request->input('academic_year') 
-        ?? Student::latest()
-            ->with('academicSession:id,year')
-            ->get()
-            ->pluck('academicSession.year')
-            ->first();
+    $filterType = $request->input('type');
+    $filterActive = $request->input('active');
+    $filterOddEven = $request->input('odd_even');
 
-    if (!$yearToShow) {
-        return back()->with('error', 'No academic year data found.');
+    // Get sessions for dropdown filter
+    $sessionQuery = AcademicSession::query();
+
+    if ($filterType) {
+        $sessionQuery->where('type', $filterType);
     }
 
-    // Step 2: Get current session by year — might return multiple (e.g., Jan & July)
-    $currentSession = AcademicSession::where('year', $yearToShow)
-        ->orderByDesc('id')
-        ->first(); 
+    if (!is_null($filterActive)) {
+        $sessionQuery->where('active', $filterActive);
+    }
 
-    // Step 3: Get ALL sessions for promotion dropdown
-    $sessions = AcademicSession::orderByDesc('year')
+    if ($filterOddEven) {
+        $sessionQuery->where('odd_even', $filterOddEven);
+    }
+
+    $sessions = $sessionQuery->orderByDesc('year')
         ->orderBy('term')
         ->get()
         ->map(function ($session) {
-            $session->display = $session->year . ' - ' . $session->term 
-                . ($session->type ? ' (' . $session->type . ')' : '');
+            $session->display = $session->year . ' - ' . $session->term
+                . ($session->type ? ' (' . $session->type . ')' : '')
+                . ($session->odd_even ? ' [' . ucfirst($session->odd_even) . ']' : '');
             return $session;
         });
 
-    // Step 4: Group by program & semester for selected academic year
-    $groups = Student::select('program_id', 'semester', 'academic_session_id')
-        ->whereHas('academicSession', function ($q) use ($yearToShow) {
-            $q->where('year', $yearToShow);
-        })
-        ->groupBy('program_id', 'semester', 'academic_session_id')
-        ->with('program:id,name')
-        ->orderBy('program_id')
-        ->orderBy('semester')
-        ->get();
+    $currentSession = $sessions->first() ?? AcademicSession::orderByDesc('id')->first();
+
+    // Step 1: Raw group data
+  $groups = ExternalResult::selectRaw('
+        external_results.program_id,
+        external_results.semester as current_semester,
+        external_results.academic_session_id
+    ')
+    ->join('academic_sessions', 'external_results.academic_session_id', '=', 'academic_sessions.id')
+    ->when($filterType, fn($q) => $q->where('academic_sessions.type', $filterType))
+    ->when(!is_null($filterActive), fn($q) => $q->where('academic_sessions.active', $filterActive))
+    ->when($filterOddEven, fn($q) => $q->where('academic_sessions.odd_even', $filterOddEven))
+    ->groupBy('external_results.program_id', 'external_results.semester', 'external_results.academic_session_id')
+    ->orderByDesc('external_results.academic_session_id')
+    ->orderBy('external_results.program_id')
+    ->get();
+
+
+
+    // Step 2: Attach programs and academic sessions manually
+    $programs = \App\Models\Program::whereIn('id', $groups->pluck('program_id'))->get()->keyBy('id');
+$academicSessions = \App\Models\AcademicSession::whereIn('id', $groups->pluck('academic_session_id'))->get()->keyBy('id');
+
+$groups->transform(function ($item) use ($programs, $academicSessions) {
+    $item->program = $programs[$item->program_id] ?? null;
+    $item->academicSession = $academicSessions[$item->academic_session_id] ?? null;
+    return $item;
+});
+
 
     return view('admin.examination.regular.calculated_results', [
-        'groups'         => $groups,
-        'academicYear'   => $yearToShow,
-        'sessions'       => $sessions,
-        'currentSession' => $currentSession,
+        'groups'           => $groups,
+        'academicSessions' => $academicSessions,
+        'academicYear'     => 'Filtered Sessions',
+        'sessions'         => $sessions,
+        'currentSession'   => $currentSession,
+        'filterType'       => $filterType,
+        'filterActive'     => $filterActive,
+        'filterOddEven'    => $filterOddEven,
     ]);
 }
 
 
-
-
-public function downloadExternalResults(int $program_id, int $semester)
+public function downloadExternalResults(int $academic_session_id, int $program_id, int $semester)
 {
     $fileName = "external_results_P{$program_id}_S{$semester}.xlsx";
 
     return Excel::download(
-        new ExternalResultsExport($program_id, $semester),
+        new ExternalResultsExport($academic_session_id, $program_id, $semester), // ✅ 3 arguments
         $fileName
     );
 }
+
 
 
 public function publish(Request $request)
@@ -850,6 +953,121 @@ public function downloadResultByRoll(Request $request)
 
     return view('admin.examination.regular.html.single', compact('student', 'results', 'selectedSemester', 'academicSession'));
 }
+
+
+//////////////////////////
+
+
+///////////////////////////////
+
+
+
+
+// public function downloadExcelRegular(Request $request)
+// {
+//     $programId = $request->query('program_id');
+//     $semester = $request->query('semester');
+//     $sessionId = $request->query('academic_session_id');
+
+//     $program = Program::findOrFail($programId);
+
+//     $students = Student::where('program_id', $programId)
+//                        ->where('academic_session_id', $sessionId)
+//                           ->where('semester', $semester) 
+//                        ->get();
+
+//     // If `courses` table doesn't have `program_id`, just filter by semester
+//  $courses = Course::whereHas('programs', function ($query) use ($programId, $semester) {
+//     $query->where('program_id', $programId)
+//           ->where('semester', $semester);
+// })->get();
+
+
+//     $marks = Mark::whereIn('student_id', $students->pluck('id'))
+//                  ->whereIn('course_id', $courses->pluck('id'))
+//                  ->get();
+
+//     $index = [];
+//     foreach ($marks as $mark) {
+//         $index[$mark->student_id][$mark->course_id] = $mark;
+//     }
+
+//     $export = new MatrixMarksExport($students, $courses, $program, $semester, $index);
+//     return \Maatwebsite\Excel\Facades\Excel::download($export, 'Regular-Marks-Matrix.xlsx');
+// }
+
+
+
+// public function downloadExcelRegular(Request $request)
+// {
+//     // Validate request input (from query string)
+//     $request->validate([
+//         'program_id' => 'required|exists:programs,id',
+//         'semester' => 'required|integer|min:1',
+//         'academic_session_id' => 'required|exists:academic_sessions,id',
+//     ]);
+
+//     // Always use ->input() when using GET routes with query parameters
+//     $programId = $request->input('program_id');
+//     $semester = $request->input('semester');
+//     $sessionId = $request->input('academic_session_id');
+
+//     // Confirm values received (optional debug)
+//     // dd(compact('programId', 'semester', 'sessionId'));
+
+//     $program = Program::findOrFail($programId);
+//     $session = AcademicSession::findOrFail($sessionId);
+
+//     // ✅ Ensure students are fetched **specific to the academic session and semester**
+//     $students = Student::where('program_id', $programId)
+//         ->where('semester', $semester)
+//         ->where('academic_session_id', $sessionId)
+//         ->get();
+
+//     // ✅ Ensure courses belong to the program and semester
+//     $courses = Course::where('semester', $semester)
+//         ->whereHas('programs', function ($q) use ($programId) {
+//             $q->where('program_id', $programId);
+//         })
+//         ->get();
+
+//     // ✅ Only get marks for these students and courses
+//     $marks = Mark::whereIn('student_id', $students->pluck('id'))
+//         ->whereIn('course_id', $courses->pluck('id'))
+//         ->get();
+
+//     // ✅ Index marks by student and course
+//     $index = [];
+//     foreach ($marks as $mark) {
+//         $index[$mark->student_id][$mark->course_id] = $mark;
+//     }
+
+//     // ✅ Generate Excel export using dynamic file name
+//     $export = new MatrixMarksExport($students, $courses, $program, $semester, $index, $session);
+
+//     $filename = "Regular-Marks-Matrix-{$program->code}-S{$semester}-{$session->year}.xlsx";
+
+//     return Excel::download($export, $filename);
+// }
+
+
+
+public function downloadExcelRegular(Request $request)
+{
+    $sessionId = $request->input('academic_session_id');
+    $programId = $request->input('program_id');
+    $semester = $request->input('semester');
+
+    if (!$sessionId || !$programId || !$semester) {
+        return redirect()->back()->with('error', 'All filters (session, program, semester) are required to download.');
+    }
+
+  return Excel::download(
+    new ExternalResultsExport($sessionId, $programId, $semester),  // ✅ 3 arguments
+    'ExternalResults.xlsx'
+);
+}
+
 
 
 

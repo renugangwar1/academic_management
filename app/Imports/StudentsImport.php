@@ -49,26 +49,30 @@ class StudentsImport implements ToCollection, WithHeadingRow, WithValidation,
             throw new \Exception("Invalid institute_code: {$code}");
         }
 
-        return [
-            'name'                 => $r['name'],
-            'nchm_roll_number'     => $r['nchm_roll_number'],
-            'enrolment_number'     => $r['enrolment_number'],
-            'program_id'           => $this->programId ?? $r['program_id'],
-            'institute_id'         => $instituteId, // ✅ fixed
-            'semester'             => $r['semester'] ?? null,
-            'year'                 => ctype_digit((string) $r['year_level'])
-                                      ? (int) $r['year_level']
-                                      : throw new \Exception("Invalid year_level: {$r['year_level']}"),
-            'academic_session_id'  => $sessionId,
-            'email'                => $r['email'],
-            'mobile'               => $r['mobile'],
-            'date_of_birth'        => $this->parseDate($r['date_of_birth']),
-            'category'             => $r['category'],
-            'father_name'          => $r['father_name'],
-            'status'               => $r['status'] ?? 1,
-            'created_at'           => $now,
-            'updated_at'           => $now,
-        ];
+      return [
+    'name'                 => $r['name'],
+    'nchm_roll_number'     => $r['nchm_roll_number'],
+    'enrolment_number'     => $r['enrolment_number'],
+    'program_id'           => $this->programId ?? $r['program_id'],
+    'institute_id'         => $instituteId,
+    'semester'             => $this->structure === 'semester'
+                                ? (ctype_digit((string) $r['semester']) ? (int) $r['semester'] : throw new \Exception("Invalid semester: {$r['semester']}"))
+                                : null,
+    'year'                 => $this->structure === 'yearly'
+                                ? (ctype_digit((string) $r['year_level']) ? (int) $r['year_level'] : throw new \Exception("Invalid year_level: {$r['year_level']}"))
+                                : null,
+    'academic_session_id'  => $sessionId, // ✅ this will now map correctly
+    'email'                => $r['email'],
+    'mobile'               => $r['mobile'],
+    'date_of_birth'        => $this->parseDate($r['date_of_birth']),
+    'category'             => $r['category'],
+    'father_name'          => $r['father_name'],
+    'status'               => $r['status'] ?? 1,
+    'created_at'           => $now,
+    'updated_at'           => $now,
+];
+
+
     })->all();
 
     if ($insert) {
@@ -96,26 +100,30 @@ class StudentsImport implements ToCollection, WithHeadingRow, WithValidation,
     public function chunkSize(): int     { return 1000; }   // adjust as you like
 
     /* ───────── Validation ───────── */
-    public function rules(): array
-    {
-        return [
-            '*.name'             => 'required|string',
-            '*.nchm_roll_number' => 'required|unique:students,nchm_roll_number',
-            '*.program_id'       => $this->programId ? 'nullable'
-                                                      : 'required|exists:programs,id',
-            '*.institute_code'   => 'required|exists:institutes,code', // ⬅️
-          '*.year_level' => 'nullable|integer|min:1|max:10',
-            '*.term'             => 'required|in:Jan,July',
-            '*.email'            => 'nullable|email',
-            '*.mobile'           => 'nullable|digits_between:6,15',
-            '*.date_of_birth'    => ['nullable', function ($attr, $value, $fail) {
-                if ($value !== '' && $value !== null && ! $this->parseDate($value)) {
-                    $fail("Bad date \"{$value}\" – use DD-MM-YYYY, DD/MM/YYYY, "
-                        ."YYYY-MM-DD, or an Excel date.");
-                }
-            }],
-        ];
+   public function rules(): array
+{
+    $rules = [
+        '*.name'             => 'required|string',
+        '*.nchm_roll_number' => 'required|unique:students,nchm_roll_number',
+        '*.institute_code'   => 'required|exists:institutes,code',
+        '*.year_level'       => 'nullable|integer|min:1|max:10',
+        '*.term'             => 'required|in:Jan,July',
+        '*.email'            => 'nullable|email',
+        '*.mobile'           => 'nullable|digits_between:6,15',
+        '*.date_of_birth'    => ['nullable', function ($attr, $value, $fail) {
+            if ($value !== '' && $value !== null && ! $this->parseDate($value)) {
+                $fail("Bad date \"{$value}\" – use DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, or an Excel date.");
+            }
+        }],
+    ];
+
+    if (! $this->programId) {
+        $rules['*.program_id'] = 'required|exists:programs,id';
     }
+
+    return $rules;
+}
+
 
     public function customValidationMessages(): array
     {

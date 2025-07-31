@@ -5,168 +5,205 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Student;
-use Barryvdh\DomPDF\Facade\Pdf;
-
 use App\Models\Institute;
 use App\Models\Program;
+use App\Models\AcademicSession;
+use App\Models\InternalResult;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+
+
+
 class ReappearController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         $institutes = Institute::orderBy('name')->get();
-        $programs   = Program::orderBy('name')->get();
+        $programs = Program::orderBy('name')->get();
+        $academicSessions = AcademicSession::orderBy('year', 'desc')->get();
 
-        // resources/views/admin/reappears/index.blade.php
-        return view('admin.reappears.index', compact('institutes', 'programs'));
+        return view('admin.reappears.index', compact('institutes', 'programs', 'academicSessions'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
-    }
-
-    
-public function downloadReappear(Request $request)
+ public function downloadReappear(Request $request)
 {
-    /* 1️⃣  Validate incoming filters */
-    $request->validate([
+    $validated = $request->validate([
         'institute_id' => 'required|exists:institutes,id',
-        'program_id'   => 'required|exists:programs,id',
-        'semester'     => 'nullable|integer',
-        'year'         => 'nullable|integer',
+        'program_id' => 'required|exists:programs,id',
+        'academic_session_id' => 'required|exists:academic_sessions,id',
+        'semester' => 'nullable|integer|min:1|max:10',
+        'year' => 'nullable|integer|min:1|max:6',
     ]);
 
-    /* 2️⃣  Build one eager‑loading query */
-    $students = Student::with([
-            'program',
-            'institute',
-            // eager‑load only the REAPPEAR results and their courses
-            'internalResults' => function ($q) use ($request) {
-                $q->where('status', 'REAPPEAR')
-                  ->when($request->semester, fn ($q, $sem) => $q->where('semester', $sem))
-                  ->with(['course' => function ($q) {
-                      $q->select('courses.id', 'course_code');
-                  }]);
-            },
-        ])
-        ->where('institute_id', $request->institute_id)
-        ->where('program_id',   $request->program_id)
-        ->when($request->year,  fn ($q, $y) => $q->where('year', $y))   // if you store year on Student
-        ->get();
+    $program = Program::findOrFail($validated['program_id']);
+    $structure = $program->structure ?? 'semester';
+    $level = $structure === 'yearly' ? $validated['year'] : $validated['semester'];
 
-    /* 3️⃣  Derive reappear course codes and discard students with none */
-    $students = $students->filter(function ($student) {
-        $codes = $student->internalResults                // ← only REAPPEAR ones are loaded
-            ->filter(function ($result) use ($student) {
-                // keep only non‑optional courses
-                return $result->course &&
-                       $result->course
-                              ->students
-                              ->where('pivot.student_id', $student->id)
-                              ->where('pivot.is_optional', false)
-                              ->isNotEmpty();
-            })
-            ->pluck('course.course_code')
-            ->unique()
-            ->values();
-
-        // attach for Blade
-        $student->setRelation('reappearCourses', $codes);
-
-        return $codes->isNotEmpty();                      // keep only if there is something to print
-    })->values();                                         // re‑index collection
-
-    /* 4️⃣  Safeguard: nothing to download */
-    if ($students->isEmpty()) {
-        return back()->with('error', 'No reappear admit cards found.');
+    if (!$level) {
+        return back()->with('error', ucfirst($structure) . ' value is required.');
     }
 
-    /* 5️⃣  Generate the bulk PDF */
-    return Pdf::loadView('pdf.reappear_admitcards', compact('students'))
-              ->download('reappear_admitcards.pdf');      // change to →stream() if you prefer preview
+    logger("🎯 Reappear download for structure: $structure | level: $level");
+
+    // 🎯 Step 1: Get student IDs with REAPPEAR status for selected semester, program
+    $reappearStudentIds = InternalResult::where('program_id', $validated['program_id'])
+        ->where('semester', $level)
+        ->whereRaw('LOWER(status) = ?', ['reappear'])
+        ->pluck('student_id')
+        ->unique();
+
+    if ($reappearStudentIds->isEmpty()) {
+        return back()->with('error', 'No students found with REAPPEAR status.');
+    }
+
+    // 🎯 Step 2: Load only those students
+    $students = Student::with(['program', 'institute', 'internalResults.course'])
+        ->whereIn('id', $reappearStudentIds)
+        ->where('institute_id', $validated['institute_id'])
+        ->where('program_id', $validated['program_id'])
+        // optionally filter by academic_session_id if needed
+        ->orderBy('nchm_roll_number')
+        ->get();
+
+    logger("✅ Students with reappear entries found: " . $students->count());
+
+    // 🎯 Step 3: Filter students who actually have valid reappear courses (courses attached, etc.)
+    $filtered = $this->filterReappearStudents($students, $level, $structure);
+
+    logger("✅ Final reappear students after course check: " . $filtered->count());
+
+    if ($filtered->isEmpty()) {
+        return back()->with('error', 'No valid reappear admit cards found.');
+    }
+
+    return Pdf::loadView('pdf.reappear_admitcards', [
+        'students' => $filtered
+    ])->download('reappear_admitcards_' . now()->format('Ymd_His') . '.pdf');
 }
 
 public function downloadReappearSingle(Request $request)
 {
-    $request->validate([
-        'nchm_roll_number' => 'required|exists:students,nchm_roll_number',
-    ]);
+    try {
+        $validated = $request->validate([
+            'program_id' => 'required|exists:programs,id',
+            'nchm_roll_number' => 'required|exists:students,nchm_roll_number',
+            'academic_session_id' => 'required|exists:academic_sessions,id',
+            'semester' => 'nullable|integer|min:1|max:10',
+            'year' => 'nullable|integer|min:1|max:6',
+        ]);
 
-    $student = Student::with([
-        'program',
-        'institute',
-        'internalResults.course'
-    ])
-    ->where('nchm_roll_number', $request->nchm_roll_number)
-    ->firstOrFail();
+        $program = Program::find($validated['program_id']);
+        if (!$program) {
+            return back()->with('error', 'Program not found. Please check your input.');
+        }
 
-    // Get REAPPEAR courses (non-optional)
-    $student->reappearCourses = $student->internalResults()
-        ->where('status', 'REAPPEAR')
-        ->with('course.students')
-        ->get()
-        ->filter(function ($result) use ($student) {
-            return $result->course &&
-                   $result->course->students
-                        ->where('pivot.student_id', $student->id)
-                        ->where('pivot.is_optional', false)
-                        ->isNotEmpty();
-        })
-        ->map(fn ($result) => $result->course->course_code ?? 'N/A')
-        ->unique()
-        ->values();
+        $structure = $program->structure ?? 'semester';
+        $level = $structure === 'yearly' ? $validated['year'] : $validated['semester'];
 
-    if ($student->reappearCourses->isEmpty()) {
-        return redirect()->back()->with('error', 'No reappear subjects found for this roll number.');
+        if (!$level) {
+            return back()->with('error', ucfirst($structure) . ' value is required.');
+        }
+
+        logger("🎯 Reappear admit card (single) for structure: $structure | level: $level");
+
+        $student = Student::with(['program', 'institute', 'internalResults.course'])
+            ->where('nchm_roll_number', $validated['nchm_roll_number'])
+            ->where('program_id', $validated['program_id'])
+            // 🛠 Removed strict academic_session_id filtering
+            ->first();
+
+        if (!$student) {
+            logger('❌ No student found with:', [
+                'nchm_roll_number' => $validated['nchm_roll_number'],
+                'program_id' => $validated['program_id'],
+            ]);
+            return back()->with('error', 'Student not found. Please check your input.');
+        }
+
+        $eligibleStudent = $this->filterReappearStudents(collect([$student]), $level, $structure)->first();
+
+        if (!$eligibleStudent) {
+            return back()->with('error', 'No valid reappear subjects found for this student.');
+        }
+
+        return Pdf::loadView('pdf.reappear_admitcard', [
+            'student' => $eligibleStudent
+        ])->download("reappear_admitcard_{$student->nchm_roll_number}.pdf");
+
+    } catch (\Exception $e) {
+        \Log::error('Unexpected error generating reappear admit card', ['error' => $e->getMessage()]);
+        return back()->with('error', 'An unexpected error occurred while generating the admit card. Please try again.');
+    }
+}
+
+
+
+
+
+    public function getAcademicSessionsByProgram($programId)
+    {
+        $sessions = DB::table('academic_session_program')
+            ->join('academic_sessions', 'academic_sessions.id', '=', 'academic_session_program.academic_session_id')
+            ->where('academic_session_program.program_id', $programId)
+            ->select('academic_sessions.id', 'academic_sessions.year')
+            ->distinct()
+            ->orderBy('academic_sessions.year', 'desc')
+            ->get();
+
+        return response()->json($sessions);
     }
 
-    return PDF::loadView('pdf.reappear_admitcard', compact('student'))
-              ->download("reappear_admitcard_{$student->nchm_roll_number}.pdf");
+    /**
+     * Filter students who have reappear courses based on internal results.
+     */
+private function filterReappearStudents($students, $level, $structure)
+{
+    return $students->filter(function ($student) use ($level, $structure) {
+        $reappearCourses = $this->getReappearCourses($student, $level, $structure);
+
+        if ($reappearCourses->isNotEmpty()) {
+            logger("✅ Student {$student->nchm_roll_number} has " . $reappearCourses->count() . " reappear courses.");
+            $student->setRelation('reappearCourses', $reappearCourses);
+            return true;
+        }
+
+        logger("❌ Student {$student->nchm_roll_number} has no reappear courses.");
+        return false;
+    })->values();
 }
+
+    /**
+     * Get reappear courses for a student using internal_results.
+     */
+private function getReappearCourses($student, $level, $structure)
+{
+    logger("Checking reappear courses for student: {$student->nchm_roll_number} | Level: $level | Structure: $structure");
+
+    // Debug all internal results for visibility
+    $allResults = InternalResult::where('student_id', $student->id)->get();
+    logger("🧪 All Internal Results for student {$student->nchm_roll_number}: " . $allResults->count());
+    foreach ($allResults as $result) {
+        logger("🧪 course_id: {$result->course_id}, semester: {$result->semester}, status: {$result->status}");
+    }
+
+    $results = InternalResult::with('course')
+        ->where('student_id', $student->id)
+        ->where('program_id', $student->program_id)
+        ->where(DB::raw('LOWER(status)'), 'reappear')
+        ->when($level !== null, fn($query) => $query->where('semester', $level))
+        ->get();
+
+    logger("Found " . $results->count() . " reappear internal results for student: {$student->nchm_roll_number}");
+
+    foreach ($results as $res) {
+        logger("➡️ Result - course_id: {$res->course_id}, semester: {$res->semester}, status: {$res->status}, course name: " . ($res->course->name ?? 'N/A'));
+    }
+
+    return $results->filter(fn($result) => $result->course)->map(fn($result) => $result->course)->unique('id')->values();
+}
+
+
+
 }

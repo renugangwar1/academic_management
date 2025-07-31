@@ -8,19 +8,20 @@
     @forelse ($sessions as $session)
         <div class="card mb-3 p-3">
             <div class="d-flex justify-content-between align-items-start flex-wrap">
-                <div class="mb-2">
-                    <strong>
-                        {{ $session->year }} – {{ $session->term }} ({{ ucfirst($session->odd_even) }})
-                        @if($session->diploma_year)
-                            – Year {{ $session->diploma_year }}
-                        @endif
-                    </strong>
-                    <span class="badge bg-{{ $session->active ? 'success' : 'secondary' }} ms-2">
-                        {{ $session->active ? 'Active' : 'Inactive' }}
-                    </span>
-                    <br>
-                    <small class="text-muted">Created at: {{ $session->created_at->format('d M Y, h:i A') }}</small>
-                </div>
+               <div class="mb-2">
+    <strong>
+        ID:{{ $session->id }} - {{ $session->year }} – {{ $session->term }} ({{ ucfirst($session->odd_even) }})
+        @if($session->diploma_year)
+            – Year {{ $session->diploma_year }}
+        @endif
+    </strong>
+    <span class="badge bg-{{ $session->active ? 'success' : 'secondary' }} ms-2">
+        {{ $session->active ? 'Active' : 'Inactive' }}
+    </span>
+    <br>
+    <small class="text-muted">Created at: {{ $session->created_at->format('d M Y, h:i A') }}</small>
+</div>
+
 
                 <div class="d-flex flex-wrap gap-2">
                     {{-- Details --}}

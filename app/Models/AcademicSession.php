@@ -21,6 +21,11 @@ class AcademicSession extends Model
                 ->withTimestamps();
 }
 
+public function students()
+{
+    return $this->hasMany(Student::class);
+}
+
     public function regularPrograms()
     {
         return $this->programs()->wherePivot('structure', 'semester');
@@ -30,6 +35,17 @@ class AcademicSession extends Model
     {
         return $this->programs()->wherePivot('structure', 'yearly');
     }
+
+
+// app/Models/AcademicSession.php
+public function getDisplayNameAttribute()
+{
+    return trim("{$this->year} " . ucfirst($this->term ?? '') . ' (' . ucfirst($this->odd_even ?? '') . ')');
+}
+
+
+
+
 }
 
 

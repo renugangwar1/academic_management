@@ -50,15 +50,16 @@
                 <div class="row g-3 mb-3 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label">Academic Session</label>
-                        <select name="session_id" class="form-select" required>
-                            <option value="">-- Select --</option>
-                            @foreach ($academicSessions as $s)
-                               <option value="{{ $s->id }}">
-    {{ $s->year }}
+                                      <select class="form-select" name="academic_session_id" required>
+    <option value="">-- Select --</option>
+    @foreach($academicSessions as $academicSession)
+        <option value="{{ $academicSession->id }}">
+    {{ $academicSession->display_name }}
 </option>
 
-                            @endforeach
-                        </select>
+    @endforeach
+</select>
+          <input type="hidden" name="session_id" value="{{ $selectedSessionId ?? '' }}">
                     </div>
 
                     <div class="col-md-3">
@@ -134,12 +135,18 @@
                         <label class="form-label">Academic Session</label>
                         <select name="session_id" class="form-select" required>
                             <option value="">-- Select --</option>
-                            @foreach ($academicSessions as $s)
-                              <option value="{{ $s->id }}">
-    {{ $s->year }}
+                           <!-- @foreach ($academicSessions as $s)
+    <option value="{{ $s->id }}">
+        {{ $s->year }} - {{ ucfirst($s->odd_even) }} Term
+    </option>
+@endforeach -->
+  @foreach($academicSessions as $academicSession)
+        <option value="{{ $academicSession->id }}">
+    {{ $academicSession->display_name }}
 </option>
 
-                            @endforeach
+    @endforeach
+
                         </select>
                     </div>
 
@@ -197,15 +204,17 @@
 
                 <div class="row g-3 align-items-end">
                     <div class="col-md-4">
-                        <label class="form-label">Academic Session</label>
+                       <label class="form-label">Academic Session</label>
                         <select name="session_id" class="form-select" required>
                             <option value="">-- Select --</option>
-                            @foreach ($academicSessions as $s)
-                              <option value="{{ $s->id }}">
-    {{ $s->year }}
+                         
+  @foreach($academicSessions as $academicSession)
+        <option value="{{ $academicSession->id }}">
+    {{ $academicSession->display_name }}
 </option>
 
-                            @endforeach
+    @endforeach
+
                         </select>
                     </div>
 
@@ -241,11 +250,11 @@
 
     {{-- ========== Preview Table ========== --}}
     @if(count($preview))
-    <form method="POST"
-      action="{{ route('admin.regular.exams.finalize.marks', $session->id) }}">
+   <form method="POST" action="{{ route('admin.regular.exams.finalize.marks', $session->id) }}">
     @csrf
-    <input type="hidden" name="mark_type" value="{{ $markType }}">
     <input type="hidden" name="session_id" value="{{ $session->id }}">
+    <input type="hidden" name="mark_type" value="{{ $markType }}">
+   
    <input type="hidden" name="program_id" value="{{ old('program_id', $programId) }}">
 <input type="hidden" name="semester"   value="{{ old('semester',   $semester) }}">
 
@@ -309,33 +318,36 @@
 @endsection
 @push('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const templateBtn = document.getElementById('download-template-btn');
-        const sessionSelect = document.querySelector('select[name="session_id"]');
-        const programSelect = document.querySelector('select[name="program_id"]');
-        const semesterSelect = document.querySelector('select[name="semester"]');
-        const markTypeSelect = document.querySelector('select[name="mark_type"]');
+  document.addEventListener('DOMContentLoaded', function () {
+    const templateBtn = document.getElementById('download-template-btn');
+    const sessionSelect = document.querySelector('select[name="academic_session_id"]'); // corrected
+    const programSelect = document.querySelector('form#uploadForm select[name="program_id"]');
+    const semesterSelect = document.querySelector('form#uploadForm select[name="semester"]');
+    const markTypeSelect = document.querySelector('form#uploadForm select[name="mark_type"]');
 
-        function updateDownloadLink() {
-            const sessionId = sessionSelect.value;
-            const programId = programSelect.value;
-            const semester = semesterSelect.value;
-            const markType = markTypeSelect.value;
+    function updateDownloadLink() {
+        const sessionId = sessionSelect.value;
+        const programId = programSelect.value;
+        const semester = semesterSelect.value;
+        const markType = markTypeSelect.value;
 
-            if (sessionId && programId && semester && markType) {
-                const url = `{{ route('admin.regular.exams.template') }}?session_id=${sessionId}&program_id=${programId}&semester=${semester}&mark_type=${markType}`;
-                templateBtn.href = url;
-                templateBtn.classList.remove('disabled');
-            } else {
-                templateBtn.href = '#';
-                templateBtn.classList.add('disabled');
-            }
+        if (sessionId && programId && semester && markType) {
+            const url = `{{ route('admin.regular.exams.template') }}?session_id=${sessionId}&program_id=${programId}&semester=${semester}&mark_type=${markType}`;
+            templateBtn.href = url;
+            templateBtn.classList.remove('disabled');
+        } else {
+            templateBtn.href = '#';
+            templateBtn.classList.add('disabled');
         }
+    }
 
-        sessionSelect.addEventListener('change', updateDownloadLink);
-        programSelect.addEventListener('change', updateDownloadLink);
-        semesterSelect.addEventListener('change', updateDownloadLink);
-        markTypeSelect.addEventListener('change', updateDownloadLink);
-    });
+    sessionSelect.addEventListener('change', updateDownloadLink);
+    programSelect.addEventListener('change', updateDownloadLink);
+    semesterSelect.addEventListener('change', updateDownloadLink);
+    markTypeSelect.addEventListener('change', updateDownloadLink);
+
+    updateDownloadLink(); // trigger once on load
+});
+
 </script>
 @endpush

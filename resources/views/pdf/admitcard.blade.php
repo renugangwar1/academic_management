@@ -151,7 +151,12 @@
 
 
 
-           <tr><td><strong>SEMESTER:</strong></td><td>{{ $semester }}</td></tr>
+<tr>
+    <td><strong>{{ strtoupper($structure === 'semester' ? 'SEMESTER' : 'YEAR') }}:</strong></td>
+    <td>{{ $level }}</td>
+</tr>
+
+
             <tr><td><strong>DATE OF ISSUE:</strong></td><td>{{ now()->format('d-m-Y') }}</td></tr>
 <tr>
   <td><strong>APPEARING SUBJECTS:</strong></td>

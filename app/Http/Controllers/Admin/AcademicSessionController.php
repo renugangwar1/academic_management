@@ -12,11 +12,20 @@ use Illuminate\Validation\Rule;
 
 class AcademicSessionController extends Controller
 {
-    public function index()
-    {
-        $sessions = AcademicSession::orderByDesc('id')->get();
-        return view('admin.academic_sessions.index', compact('sessions'));
-    }
+  public function index()
+{
+    
+    $latestRegularSession = AcademicSession::where('type', 'regular')->latest()->first();
+    $latestDiplomaSession = AcademicSession::where('type', 'diploma')->latest()->first();
+
+    return view('admin.academic_sessions.index', [
+        // 'academicSession'   => $academicSession, // 👈 now available to the Blade
+        'regularSessionId'  => $latestRegularSession?->id,
+        'diplomaSessionId'  => $latestDiplomaSession?->id,
+    ]);
+}
+
+
 
     public function create(Request $request)
     {
@@ -76,20 +85,23 @@ class AcademicSessionController extends Controller
 }
 
 
-    public function edit(AcademicSession $academic_session)
-    {
-        return view('admin.academic_sessions.create', compact('academic_session'));
-    }
+  public function edit(AcademicSession $academic_session)
+{
+    $type = $academic_session->type;
+    return view('admin.academic_sessions.create', compact('academic_session', 'type'));
+}
+
+
 public function update(Request $request, AcademicSession $academic_session): RedirectResponse
 {
-   $validated = $request->validate([
-    'year' => 'required|string',
-    'term' => 'required|in:Jan,July',
-    'type' => 'required|in:regular,diploma',
-    'odd_even' => 'required_if:type,regular|nullable|in:odd,even',
-    'diploma_year' => 'required_if:type,diploma|nullable|in:1,2',
-    'active' => 'boolean',
-]);
+    $validated = $request->validate([
+        'year' => 'required|string',
+        'term' => 'required|in:Jan,July',
+        'type' => 'required|in:regular,diploma',
+        'odd_even' => 'required_if:type,regular|nullable|in:odd,even',
+        'diploma_year' => 'required_if:type,diploma|nullable|in:1,2',
+        'active' => 'boolean',
+    ]);
 
     // Check for duplicate (excluding current session)
     $exists = AcademicSession::where('year', $validated['year'])
@@ -113,15 +125,16 @@ public function update(Request $request, AcademicSession $academic_session): Red
             ->withInput();
     }
 
-   
-AcademicSession::create([
-    'year' => $request->year,
-    'term' => $request->term,
-    'type' => $request->type,
-    'odd_even' => $request->type === 'regular' ? $request->odd_even : null,
-    'diploma_year' => $request->type === 'diploma' ? $request->diploma_year : null,
-    'active' => $request->has('active'),
-]);
+    // ✅ Correct: Update the existing session
+    $academic_session->update([
+        'year' => $validated['year'],
+        'term' => $validated['term'],
+        'type' => $validated['type'],
+        'odd_even' => $validated['type'] === 'regular' ? $validated['odd_even'] : null,
+        'diploma_year' => $validated['type'] === 'diploma' ? $validated['diploma_year'] : null,
+       'active' => $request->input('active') == 1 ? true : false,
+
+    ]);
 
     $route = $validated['type'] === 'regular'
         ? 'admin.academic_sessions.regular.index'
@@ -131,6 +144,7 @@ AcademicSession::create([
         ->route($route)
         ->with('success', 'Academic session updated successfully.');
 }
+
 
 
     public function destroy(AcademicSession $academic_session)
@@ -190,20 +204,19 @@ AcademicSession::create([
             ->with('success', 'Program mapped to session successfully.');
     }
 
-    public function listRegular()
-    {
-        $sessions = AcademicSession::where('type', 'regular')
-            ->orderByDesc('id')
-            ->get();
+public function listRegular()
+{
+    $sessions = AcademicSession::where('type', 'regular')
+        ->orderByDesc('created_at')
+        ->get();
 
-        return view('admin.academic_sessions.regular.index', compact('sessions'));
-    }
+    return view('admin.academic_sessions.regular.index', compact('sessions'));
+}
+
 
     public function listDiploma()
     {
-        $sessions = AcademicSession::where('type', 'diploma')
-            ->orderByDesc('id')
-            ->get();
+       
 
         return view('admin.academic_sessions.diploma.index', compact('sessions'));
     }
@@ -214,6 +227,8 @@ AcademicSession::create([
 //         ->programs()
 //         ->withPivot('structure', 'semester') // removed 'start_level'
 //         ->get();
+
+
 
 //     return view('admin.academic_sessions.regular.show', compact('academic_session', 'programs'));
 // }

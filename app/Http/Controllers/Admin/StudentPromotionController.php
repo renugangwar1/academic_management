@@ -6,14 +6,26 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Student;
 use App\Models\Promotion;
+use App\Models\AcademicSession;
+use App\Models\StudentSessionHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
 class StudentPromotionController extends Controller
 {
+
+   
+
+
     public function promote(Request $request)
     {
+        if ($request->isMethod('get')) {
+            return view('admin.promotions.selection', [
+                'sessions' => AcademicSession::orderBy('id')->get(),
+            ]);
+        }
+
         try {
             $validated = $request->validate([
                 'from_session_id' => 'required|exists:academic_sessions,id',
@@ -23,122 +35,91 @@ class StudentPromotionController extends Controller
                 'promotion_type'  => 'required|in:all,passed,failed,manual',
             ]);
 
-            // Explicit type casting
-            $validated['from_session_id'] = (int) $validated['from_session_id'];
-            $validated['to_session_id']   = (int) $validated['to_session_id'];
-            $validated['program_id']      = (int) $validated['program_id'];
-            $validated['semester']        = (int) $validated['semester'];
-
+            $validated = array_map('intval', $validated);
             Log::info('📥 Promotion request received', $validated);
 
-            // Step 1: Build base query
             $baseQuery = Student::query()
                 ->where('program_id', $validated['program_id'])
                 ->where('academic_session_id', $validated['from_session_id'])
                 ->where('semester', $validated['semester']);
 
-            Log::debug('🔍 Base student query SQL', [
-                'query'    => $baseQuery->toSql(),
-                'bindings' => $baseQuery->getBindings(),
-                'context'  => $validated,
-            ]);
+            if (!$baseQuery->exists()) {
+                return back()->with('error', "❌ No students found matching the given criteria.");
+            }
 
-            $baseCount = $baseQuery->count();
-            Log::info("📊 Base student count: $baseCount");
+            if ($validated['promotion_type'] === 'manual') {
+                return redirect()->route('promotions.manual', $validated);
+            }
 
-           if ($baseCount === 0) {
-    // Diagnostic checks
-    $programExists = DB::table('students')->where('program_id', $validated['program_id'])->exists();
-    $sessionExists = DB::table('students')->where('academic_session_id', $validated['from_session_id'])->exists();
-    $semesterExists = DB::table('students')->where('semester', $validated['semester'])->exists();
-
-    $details = [];
-
-    if (!$programExists) {
-        $details[] = "No students found in selected Program (ID: {$validated['program_id']}).";
-    }
-
-    if (!$sessionExists) {
-        $details[] = "No students found in selected Academic Session (ID: {$validated['from_session_id']}).";
-    }
-
-    if (!$semesterExists) {
-        $details[] = "No students found in Semester {$validated['semester']}.";
-    }
-
-    if (empty($details)) {
-        $details[] = "No students found matching all three: Program, Session, and Semester.";
-    }
-
-    $errorMsg = '❌ No students found for the selected criteria:<br>' . implode('<br>', $details);
-
-    Log::warning('⚠️ Detailed base student check failed', $details);
-
-    return back()->with('error', $errorMsg);
-}
-
-
-            // Step 2: Apply promotion type filters
             $students = match ($validated['promotion_type']) {
                 'passed' => $baseQuery->passed($validated['semester'])->get(),
                 'failed' => $baseQuery->failed($validated['semester'])->get(),
-                default  => $baseQuery->get(), // all + manual
+                default  => $baseQuery->get(),
             };
 
-            Log::info("🎯 Students found after filtering ({$validated['promotion_type']}): " . $students->count());
-            Log::debug("👥 Filtered student IDs", ['ids' => $students->pluck('id')->toArray()]);
-
             if ($students->isEmpty()) {
-                $message = match ($validated['promotion_type']) {
-                    'passed' => "⚠️ Students exist but none have passed in Semester {$validated['semester']}.",
-                    'failed' => "⚠️ Students exist but none are marked as failed in Semester {$validated['semester']}.",
-                    'manual' => "⚠️ No students found for manual selection.",
-                    default  => "⚠️ No students matched the promotion criteria.",
-                };
-                Log::notice('⚠️ Promotion aborted: ' . $message);
-                return back()->with('warning', $message);
+                return back()->with('warning', "⚠️ No students matched the promotion criteria.");
             }
 
-            // Step 3: Handle manual view
-            if ($validated['promotion_type'] === 'manual') {
-                return view('admin.promotions.manual', [
-                    'students'        => $students,
-                    'to_session_id'   => $validated['to_session_id'],
-                    'from_session_id' => $validated['from_session_id'],
-                    'semester'        => $validated['semester'],
-                    'program_id'      => $validated['program_id'],
-                ]);
-            }
-
-            // Step 4: Promote
-            return $this->promoteStudents($students, $validated['to_session_id']);
+            return $this->promoteStudents($students, $validated['to_session_id'], $validated['promotion_type']);
         } catch (Exception $e) {
             Log::error('❌ Exception during promotion', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'An unexpected error occurred. Please try again or contact support.');
+            return back()->with('error', 'An unexpected error occurred. Please try again.');
         }
     }
 
     public function promoteManual(Request $request)
     {
+        if ($request->isMethod('get')) {
+            $validated = $request->validate([
+                'from_session_id' => 'required|exists:academic_sessions,id',
+                'to_session_id'   => 'required|exists:academic_sessions,id|different:from_session_id',
+                'program_id'      => 'required|exists:programs,id',
+                'semester'        => 'required|integer|min:1|max:9',
+            ]);
+
+            $students = Student::with([
+                'institute',
+                'externalResults' => fn($query) => $query
+                    ->where('semester', $validated['semester'])
+                    ->where('program_id', $validated['program_id']),
+            ])
+                ->where('program_id', $validated['program_id'])
+                ->where('academic_session_id', $validated['from_session_id'])
+                ->where('semester', $validated['semester'])
+                ->orderBy('name')
+                ->get();
+
+            $currentSession = AcademicSession::find($validated['from_session_id']);
+            $sessions = AcademicSession::where('id', '>', $currentSession->id)->orderBy('id')->get();
+
+            return view('admin.promotions.manual', [
+                'students'        => $students,
+                'to_session_id'   => $validated['to_session_id'],
+                'from_session_id' => $validated['from_session_id'],
+                'semester'        => $validated['semester'],
+                'program_id'      => $validated['program_id'],
+                'sessions'        => $sessions,
+                'currentSession'  => $currentSession,
+            ]);
+        }
+
         try {
             $validated = $request->validate([
                 'student_ids'   => 'required|array',
                 'to_session_id' => 'required|exists:academic_sessions,id',
             ]);
 
-            Log::info('📥 Manual promotion triggered', $validated);
-
             $students = Student::whereIn('id', $validated['student_ids'])->get();
 
             if ($students->isEmpty()) {
-                Log::warning('⚠️ No students found for manual promotion', ['ids' => $validated['student_ids']]);
-                return back()->with('warning', 'No valid students selected for promotion.');
+                return back()->with('warning', 'No valid students selected for manual promotion.');
             }
 
-            return $this->promoteStudents($students, $validated['to_session_id'], route('admin.exams.results.index'));
+            return $this->promoteStudents($students, $validated['to_session_id'], 'manual');
         } catch (Exception $e) {
             Log::error('❌ Manual promotion failed', [
                 'error' => $e->getMessage(),
@@ -157,36 +138,28 @@ class StudentPromotionController extends Controller
                 'to_semester' => 'required|integer|min:1|max:10',
             ]);
 
-            $fromSemester = $student->semester;
-            $toSemester = $validated['to_semester'];
-
-            if ($fromSemester == $toSemester) {
-                return back()->with('warning', "⚠️ The student is already in Semester $toSemester.");
+            if ($student->semester == $validated['to_semester']) {
+                return back()->with('warning', "⚠️ The student is already in Semester {$validated['to_semester']}.");
             }
 
             DB::beginTransaction();
 
-            $student->semester = $toSemester;
+            $this->logStudentSession($student, 'manual', $student->semester, $validated['to_semester'], $student->academic_session_id);
+
+            $fromSemester = $student->semester;
+            $student->semester = $validated['to_semester'];
             $student->save();
 
-            // Avoid duplicate promotion entry
-            if (!Promotion::where([
+            Promotion::firstOrCreate([
                 'student_id'    => $student->id,
                 'from_semester' => $fromSemester,
-                'to_semester'   => $toSemester,
-            ])->exists()) {
-                Promotion::create([
-                    'student_id'    => $student->id,
-                    'from_semester' => $fromSemester,
-                    'to_semester'   => $toSemester,
-                    'promoted_by'   => auth()->id(),
-                    'promoted_at'   => now(),
-                ]);
-            }
+                'to_semester'   => $validated['to_semester'],
+            ], [
+                'promoted_by' => auth()->id(),
+                'promoted_at' => now(),
+            ]);
 
             DB::commit();
-
-            Log::info("✅ Student {$student->id} promoted from $fromSemester to $toSemester");
 
             return back()->with('success', 'Student promoted successfully!');
         } catch (Exception $e) {
@@ -200,52 +173,42 @@ class StudentPromotionController extends Controller
         }
     }
 
-    private function promoteStudents($students, $toSessionId, $redirectRoute = null)
+    private function promoteStudents($students, $toSessionId, string $promotionType = 'auto')
     {
         DB::beginTransaction();
         try {
             $promotedCount = 0;
+            $finalSemester = 10;
 
             foreach ($students as $student) {
-                if ($student->semester >= 10) {
-                    Log::notice("🚫 Skipping student {$student->id} - already in final semester");
+                if ($student->semester >= $finalSemester) {
                     continue;
                 }
 
                 $fromSemester = $student->semester;
-                $toSemester = $fromSemester + 1;
+                $newSemester = $fromSemester + 1;
 
-                $student->semester = $toSemester;
+                $this->logStudentSession($student, $promotionType, $fromSemester, $newSemester, $toSessionId);
+
+                $student->semester = $newSemester;
+                $student->original_academic_session_id ??= $student->academic_session_id;
                 $student->academic_session_id = $toSessionId;
                 $student->save();
 
-                // Avoid duplicate promotion
-                if (!Promotion::where([
+                Promotion::firstOrCreate([
                     'student_id'    => $student->id,
                     'from_semester' => $fromSemester,
-                    'to_semester'   => $toSemester,
-                ])->exists()) {
-                    Promotion::create([
-                        'student_id'    => $student->id,
-                        'from_semester' => $fromSemester,
-                        'to_semester'   => $toSemester,
-                        'promoted_by'   => auth()->id(),
-                        'promoted_at'   => now(),
-                    ]);
-                }
+                    'to_semester'   => $newSemester,
+                ], [
+                    'promoted_by' => auth()->id(),
+                    'promoted_at' => now(),
+                ]);
 
-                Log::info("📦 Promoted student {$student->id} from Semester $fromSemester to $toSemester");
                 $promotedCount++;
             }
 
             DB::commit();
-
-            $message = "$promotedCount student(s) promoted successfully.";
-            Log::info('🎉 Promotion process completed', ['count' => $promotedCount]);
-
-            return $redirectRoute
-                ? redirect()->to($redirectRoute)->with('success', $message)
-                : back()->with('success', $message);
+            return back()->with('success', "$promotedCount student(s) promoted successfully.");
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('❌ Bulk promotion failed', [
@@ -254,5 +217,40 @@ class StudentPromotionController extends Controller
             ]);
             return back()->with('error', 'Promotion failed: ' . $e->getMessage());
         }
+    }
+
+    private function logStudentSession(
+        Student $student,
+        string $promotionType = 'auto',
+        ?int $fromSemester = null,
+        ?int $toSemester = null,
+        ?int $newAcademicSessionId = null
+    ): void {
+        $newAcademicSessionId = $newAcademicSessionId ?? $student->academic_session_id;
+
+        $exists = StudentSessionHistory::where([
+            'student_id'          => $student->id,
+            'academic_session_id' => $newAcademicSessionId,
+            'from_semester'       => $fromSemester,
+            'to_semester'         => $toSemester,
+        ])->exists();
+
+        if ($exists) {
+            Log::info("🔁 Duplicate promotion skipped for student_id={$student->id}, semester={$toSemester}");
+            return;
+        }
+
+        StudentSessionHistory::create([
+            'student_id'           => $student->id,
+            'academic_session_id'  => $newAcademicSessionId,
+            'program_id'           => $student->program_id,
+            'institute_id'         => $student->institute_id,
+            'from_semester'        => $fromSemester,
+            'to_semester'          => $toSemester,
+            'semester'             => $toSemester,
+            'promotion_type'       => $promotionType,
+            'promoted_by'          => auth()->id(),
+            'promoted_at'          => now(),
+        ]);
     }
 }

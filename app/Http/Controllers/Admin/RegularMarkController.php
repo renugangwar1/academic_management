@@ -11,6 +11,8 @@ use App\Exports\UploadedMarksExport;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Database\Eloquent\Builder;  
+use Illuminate\Support\Facades\Log;
+
 
 
 class RegularMarkController extends BaseMarkController
@@ -23,6 +25,7 @@ class RegularMarkController extends BaseMarkController
 public function downloadTemplate(Request $r)
 {
     $data = $r->validate([
+          'session_id' => 'required|exists:academic_sessions,id',
         'program_id' => 'required|exists:programs,id',
         'semester'   => 'required|integer|min:1',
         'mark_type'  => 'required|in:internal,external,attendance,all',
@@ -57,33 +60,142 @@ public function downloadTemplate(Request $r)
         $fileName
     );
 }
-// RegularMarkController.php
+
+
+// public function handleUploadMarksRegular(Request $r)
+// {
+//     Log::info('Uploading Marks: Incoming request', $r->all());
+
+//     try {
+//       $session = AcademicSession::findOrFail($r->academic_session_id);
+
+//      Log::info('Session found', ['academic_session_id' => $r->academic_session_id]);
+
+
+//         [$preview, $courseCols, $markType] = $this->buildPreview($r);
+//         Log::info('Preview built', [
+//             'course_columns' => $courseCols,
+//             'mark_type' => $markType,
+//             'preview_sample' => array_slice($preview, 0, 3), // log first 3 rows
+//         ]);
+
+//         return redirect()
+//             ->route('admin.regular.exams.marks.upload', ['session' => $session->id])
+//             ->with([
+//                 'previewData' => $preview,
+//                 'columns'     => $courseCols,
+//                 'markType'    => $markType,
+//                 'programId'   => $r->program_id,
+//                 'semester'    => $r->semester,
+//             ]);
+
+//     } catch (\Throwable $e) {
+//         Log::error('Error during mark upload', [
+//             'message' => $e->getMessage(),
+//             'trace' => $e->getTraceAsString(),
+//         ]);
+//         return back()->withErrors('Something went wrong. Please check the log.');
+//     }
+// }
+
 public function handleUploadMarksRegular(Request $r)
 {
-    $session = AcademicSession::findOrFail($r->session_id);
+    Log::info('Uploading Marks: Incoming request', $r->all());
 
-    [$preview, $courseCols, $markType] = $this->buildPreview($r);
+    try {
+        $session = AcademicSession::findOrFail($r->academic_session_id);
 
-    return redirect()
-        ->route('admin.regular.exams.marks.upload', $session->id)
-        ->with([
-            'previewData' => $preview,
-            'columns'     => $courseCols,
-            'markType'    => $markType,
+        Log::info('Session found', ['academic_session_id' => $r->academic_session_id]);
 
-            // 🔑 NEW – flash these so the Blade has them
-            'programId'   => $r->program_id,
-            'semester'    => $r->semester,
+        [$preview, $courseCols, $markType] = $this->buildPreview($r);
+
+        Log::info('Preview built', [
+            'course_columns' => $courseCols,
+            'mark_type' => $markType,
+            'preview_sample' => array_slice($preview, 0, 3),
         ]);
+
+        // ✅ SAVE MARKS INTO DATABASE
+        $fieldToUpdate = match($markType) {
+            'internal'   => 'internal_marks',
+            'external'   => 'external_marks',
+            'attendance' => 'attendance_marks',
+            default      => null,
+        };
+
+        if ($fieldToUpdate) {
+            foreach ($preview as $row) {
+                $student = Student::where('nchm_roll_number', $row['nchm_roll_number'])->first();
+                if (!$student) continue;
+
+                foreach ($courseCols as $courseCode) {
+                    $course = Course::where('course_code', $courseCode)->first();
+                    if (!$course) continue;
+
+                    $existing = Mark::where([
+                        'student_id' => $student->id,
+                        'course_id'  => $course->id,
+                        'session_id' => $r->academic_session_id,
+                        'semester'   => $r->semester,
+                    ])->first();
+
+                    if ($existing) {
+                        $existing->$fieldToUpdate = $row[$courseCode];
+                        $existing->save();
+                    } else {
+                        Mark::create([
+                            'student_id'   => $student->id,
+                            'course_id'    => $course->id,
+                            'session_id'   => $r->academic_session_id,
+                            'semester'     => $r->semester,
+                            $fieldToUpdate => $row[$courseCode],
+                        ]);
+                    }
+                }
+            }
+
+            Log::info('Marks successfully saved.');
+        } else {
+            Log::warning("Invalid mark type provided: {$markType}");
+        }
+
+        return redirect()
+            ->route('admin.regular.exams.marks.upload', ['session' => $session->id])
+            ->with([
+                'previewData' => $preview,
+                'columns'     => $courseCols,
+                'markType'    => $markType,
+                'programId'   => $r->program_id,
+                'semester'    => $r->semester,
+            ]);
+
+    } catch (\Throwable $e) {
+        Log::error('Error during mark upload', [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+        return back()->withErrors('Something went wrong. Please check the log.');
+    }
 }
 
-// RegularMarkController.php
+
 private function buildPreview(Request $r): array
 {
-    $sheet   = Excel::toCollection(null, $r->file('marks_file'))->first();
-    $header  = $sheet->first()->toArray();
+    if (!$r->hasFile('marks_file')) {
+        Log::warning('No marks_file found in request');
+        throw new \Exception('No marks file uploaded.');
+    }
 
-    $courseCols = array_slice($header, 4);   // ← was 2
+    $sheet = Excel::toCollection(null, $r->file('marks_file'))->first();
+    if (!$sheet || $sheet->isEmpty()) {
+        Log::warning('Uploaded file is empty or unreadable');
+        throw new \Exception('Uploaded file is empty or not a valid Excel.');
+    }
+
+    $header = $sheet->first()->toArray();
+    Log::info('Excel Header Row', $header);
+
+    $courseCols = array_slice($header, 4); // Adjusted from 2 to 4
     $preview = [];
 
     foreach ($sheet->skip(1) as $row) {
@@ -93,60 +205,56 @@ private function buildPreview(Request $r): array
         $rec = [
             'nchm_roll_number' => trim($data[0]),
             'name'             => trim($data[1] ?? ''),
-            // keep Program & Semester just for display (optional)
         ];
 
         foreach ($courseCols as $i => $h) {
-            $rec[$h] = $data[$i + 4] ?? null;           // ← index shift
+            $rec[$h] = $data[$i + 4] ?? null;
         }
+
         $preview[] = $rec;
     }
+
     return [$preview, $courseCols, $r->mark_type];
 }
 
+public function downloadUploadedMarks(Request $r)
+{
+    $r->validate([
+        'session_id' => 'required|exists:academic_sessions,id',
+        'program_id' => 'required|exists:programs,id',
+        'mark_type'  => 'required|in:internal,external,attendance,all',
+    ]);
 
+    $program  = Program::findOrFail($r->program_id);
+    $session  = AcademicSession::findOrFail($r->session_id); // ✅ FIXED
 
- public function downloadUploadedMarks(Request $r)
-    {
-        $r->validate([
-            'session_id' => 'required|exists:academic_sessions,id',
-            'program_id' => 'required|exists:programs,id',
-            'mark_type'  => 'required|in:internal,external,attendance,all',
-        ]);
+    $isSem    = $program->structure === 'semester';
 
-        $program  = Program::findOrFail($r->program_id);
-        $session  = AcademicSession::findOrFail($r->session_id);
-        $isSem    = $program->structure === 'semester';
+    $r->validate($isSem
+        ? ['semester' => 'required|integer|min:1|max:10']
+        : ['year'     => 'required|integer|min:1|max:6']);
 
-        /* validate & resolve term */
-        $r->validate($isSem
-            ? ['semester' => 'required|integer|min:1|max:10']
-            : ['year'     => 'required|integer|min:1|max:6']);
+    $term = $isSem ? $r->semester : $r->year;
 
-        $term = $isSem ? $r->semester : $r->year;
+    $courses = $program->courses()
+        ->wherePivot($isSem ? 'semester' : 'year', $term)
+        ->get();
 
-        /* courses mapped to that term */
-        $courses = $program->courses()
-                           ->wherePivot($isSem ? 'semester' : 'year', $term)
-                           ->get();
+    if ($courses->isEmpty()) {
+        return back()->withErrors(['no_data' => 'No courses found for the selected combination.']);
+    }
 
-        if ($courses->isEmpty()) {
-            return back()->withErrors(['no_data' => 'No courses found for the selected combination.']);
-        }
-
-        /* students that actually have marks for that term & session */
-       $students = Student::with([
+    $students = Student::with([
         'program',
-        // ⬇️ 1)  remove the Builder type‑hint here
         'marks' => function ($q) use ($courses, $session, $term, $isSem) {
             $q->whereIn('course_id', $courses->pluck('id'))
               ->where('session_id',  $session->id)
               ->when($isSem,
                      fn ($q) => $q->where('semester', $term),
                      fn ($q) => $q->where('year',     $term));
-        }])
+        }
+    ])
     ->where('program_id', $program->id)
-    // ⬇️ 2)  leave the Builder type‑hint on the whereHas closure – here it **is** a Builder
     ->whereHas('marks', function (Builder $q) use ($courses, $session, $term, $isSem) {
         $q->whereIn('course_id', $courses->pluck('id'))
           ->where('session_id',  $session->id)
@@ -157,16 +265,17 @@ private function buildPreview(Request $r): array
     ->orderBy('nchm_roll_number')
     ->get();
 
-        if ($students->isEmpty()) {
-            return back()->withErrors(['no_data' => 'No marks found for the selected combination.']);
-        }
-
-        /* stream Excel */
-        return Excel::download(
-            new UploadedMarksExport($students, $courses, $r->mark_type, $program->structure),
-            sprintf('marks_%s_P%s_T%s_%s.xlsx',
-                $session->year, $program->id, $term, $r->mark_type)
-        );
+    if ($students->isEmpty()) {
+        return back()->withErrors(['no_data' => 'No marks found for the selected combination.']);
     }
+
+    return Excel::download(
+        new UploadedMarksExport($students, $courses, $r->mark_type, $program->structure),
+        sprintf('marks_%s_P%s_T%s_%s.xlsx',
+            $session->year, $program->id, $term, $r->mark_type)
+    );
+}
+
+
 
 }

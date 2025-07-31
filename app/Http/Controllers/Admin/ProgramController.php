@@ -102,33 +102,70 @@ public function viewCourses($id)
     return view('admin.programs.view_courses', compact('program', 'coursesBySemester'));
 }
 
-
-
 public function viewStudents(Request $request, $id)
 {
     $program = Program::findOrFail($id);
 
     $selectedSemester = $request->input('semester') === 'all' ? null : (int) $request->input('semester');
 
-    $query = Student::with(['courses', 'institute'])
-        ->where('program_id', $id);
+    $students = Student::with(['institute', 'courses', 'academicSession'])
+        ->where('program_id', $id)
+       ->when($selectedSemester, function ($q) use ($selectedSemester) {
+    $q->where(function ($subQuery) use ($selectedSemester) {
+        $subQuery->where('semester', $selectedSemester) // Current semester (fallback)
+            ->orWhereHas('sessionHistories', function ($historyQuery) use ($selectedSemester) {
+                $historyQuery->where('semester', $selectedSemester);
+            });
+    });
+})
+        ->when($request->filled('name'), fn($q) =>
+            $q->where('name', 'like', '%' . $request->name . '%')
+        )
+        ->when($request->filled('nchm_roll_number'), fn($q) =>
+            $q->where('nchm_roll_number', 'like', '%' . $request->nchm_roll_number . '%')
+        )
+        ->when($request->filled('enrolment_number'), fn($q) =>
+            $q->where('enrolment_number', 'like', '%' . $request->enrolment_number . '%')
+        )
+        ->when($request->filled('institute'), fn($q) =>
+            $q->whereHas('institute', fn($query) =>
+                $query->where('name', 'like', '%' . $request->institute . '%')
+            )
+        )
+        ->when($request->filled('academic_year'), fn($q) =>
+            $q->whereHas('academicSession', fn($query) =>
+                $query->where('year', 'like', '%' . $request->academic_year . '%')
+            )
+        )
+        ->when($request->filled('email'), fn($q) =>
+            $q->where('email', 'like', '%' . $request->email . '%')
+        )
+        ->when($request->filled('mobile'), fn($q) =>
+            $q->where('mobile', 'like', '%' . $request->mobile . '%')
+        )
+        ->when($request->filled('category'), fn($q) =>
+            $q->where('category', 'like', '%' . $request->category . '%')
+        )
+        ->when($request->filled('father_name'), fn($q) =>
+            $q->where('father_name', 'like', '%' . $request->father_name . '%')
+        )
+        ->when($request->filled('status'), fn($q) =>
+            $q->where('status', $request->status)
+        )
+        ->when($request->filled('course'), fn($q) =>
+            $q->whereHas('courses', fn($query) =>
+                $query->where('course_code', 'like', '%' . $request->course . '%')
+            )
+        )
+        ->paginate(10)
+        ->withQueryString();
 
-    // Apply semester filter if present
-    if ($selectedSemester) {
-        $query->where('semester', $selectedSemester);
-    }
-
-    $students = $query->paginate(10)->withQueryString(); // retain filters in pagination
-
-    // Get distinct semesters to populate dropdown
     $availableSemesters = Student::where('program_id', $id)
-                                ->distinct()
-                                ->pluck('semester')
-                                ->sort();
+        ->distinct()
+        ->pluck('semester')
+        ->sort();
 
-    // Get courses mapped to this program & semester
     $mappedCoursesQuery = $program->courses();
-
     if ($selectedSemester) {
         $mappedCoursesQuery->wherePivot('semester', $selectedSemester);
     }
@@ -168,20 +205,25 @@ public function importStudents(Request $request, $programId)
 {
     $request->validate([
         'file' => 'required|file|mimes:xlsx,xls,csv',
+        'program_id' => 'required|exists:programs,id',
     ]);
 
-    $program = Program::findOrFail($programId);
-    $import  = new StudentsImport($program->id, $program->structure);
+    $program = Program::findOrFail($request->program_id);
+    $structure = $program->structure;
 
-    Excel::import($import, $request->file('file'));
+    $import = new StudentsImport($program->id, $structure);  // ✅ now it knows programId
 
-    // If you still need raw debug, uncomment:
-    // dd($import->failures()->toArray());
+    try {
+        Excel::import($import, $request->file('file'));
 
-    return back()->with([
-        'success'  => "{$import->importedCount()} students imported.",
-        'failures' => $import->failures()->isNotEmpty() ? $import->failures() : null,
-    ]);
+        return back()->with([
+            'success'  => "{$import->importedCount()} students imported.",
+            'failures' => $import->failures()->isNotEmpty() ? $import->failures() : null,
+        ]);
+    } catch (\Throwable $e) {
+        report($e);
+        return back()->with('error', 'Import failed: '.$e->getMessage());
+    }
 }
 
 

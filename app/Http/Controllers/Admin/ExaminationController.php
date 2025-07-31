@@ -9,6 +9,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use App\Services\Grading\{CourseGrade, SemesterGpa};
 use App\Models\ProgramResultGroup;
+use Illuminate\Support\Collection;
+
 /**
  * Examination‑related operations for **Regular** programmes only.
  * All Diploma‑specific logic has been removed.
@@ -33,33 +35,65 @@ public function indexDiploma()
 {
     return view('admin.examination.diploma.index');
 }
+
+// public function indexRegular()
+// {
+//     $academicSession = AcademicSession::where('type', 'regular')->latest()->first();
+
+//     return view('admin.examination.regular.index', compact('academicSession'));
+// }
+
+
 public function indexRegular()
 {
-    return view('admin.examination.regular.index');
+    $academicSession = AcademicSession::where('type', 'regular')->latest()->first();
+
+    // ✅ Ensure the session ID is set
+    if ($academicSession) {
+        session(['exam_session_id' => $academicSession->id]);
+    }
+
+    return view('admin.examination.regular.index', compact('academicSession'));
 }
+// public function indexRegular()
+// {
+//     // Group external_results by program, semester, and academic_session_id
+//     $groups = \App\Models\ExternalResult::select(
+//             'program_id',
+//             'semester',
+//             'academic_session_id'
+//         )
+//         ->with(['program', 'academicSession']) // Eager load relationships
+//         ->groupBy('program_id', 'semester', 'academic_session_id')
+//         ->get();
+
+//     // Load sessions for promotion modal
+//     $sessions = \App\Models\AcademicSession::orderBy('year', 'desc')->get();
+
+//     // return view('admin.examination.regular.all-results', compact('groups', 'sessions'));
+//      return view('admin.examination.regular.index', compact('groups','sessions'));
+// }
 
 
-public function uploadMarksRegular(AcademicSession $session)
+public function uploadMarksRegular($sessionId)
 {
-    abort_if($session->type !== 'regular', 404);
+    $session = AcademicSession::findOrFail($sessionId); // ✅ Ensure full model is fetched
 
     $academicSessions = AcademicSession::where('type', 'regular')
-        ->orderByDesc('year')->get();
+        ->orderByDesc('year')
+        ->get(['id', 'year', 'term', 'odd_even', 'type']);
 
-    $programs = Program::whereIn('id', function ($q) use ($session) {
-        $q->select('program_id')
-          ->from('academic_session_program')
-          ->where('academic_session_id', $session->id)
-          ->where('structure', 'semester');
-    })->orderBy('name')->get();
+    $programs = Program::where('structure', 'semester')->orderBy('name')->get();
 
     return view('admin.examination.regular.upload-marks', [
-        'session'          => $session,
+        'session'          => $session, // ✅ This is what your view needs
         'academicSessions' => $academicSessions,
         'programs'         => $programs,
         'previewData'      => session('previewData', []),
         'columns'          => session('columns', []),
         'markType'         => session('markType', ''),
+        'programId'        => session('programId'),
+        'semester'         => session('semester'),
     ]);
 }
 
@@ -68,10 +102,9 @@ public function uploadMarksDiploma(AcademicSession $session)
 {
     abort_if($session->type !== 'diploma', 404);
 
-    $academicSessions = AcademicSession::where('type', 'diploma')
-                       ->orderByDesc('year')
-                       ->get();
-
+   $academicSessions = AcademicSession::where('type', $session->type)
+                    ->orderByDesc('year')
+                    ->get(['id', 'year', 'term', 'odd_even', 'type']);
     // Get only programs mapped to this session and filtered by structure
    $programs = Program::whereIn('id', function ($query) use ($session) {
     $query->select('program_id')
@@ -83,19 +116,19 @@ public function uploadMarksDiploma(AcademicSession $session)
     return view('admin.examination.diploma.upload-marks', compact('session', 'academicSessions', 'programs'));
 }
 
- public function generateAdmitCard(AcademicSession $session)
+
+
+public function generateAdmitCard(AcademicSession $session)
 {
     $institutes = Institute::all();
 
-    $programs = Program::whereIn('id', function ($query) use ($session) {
-        $query->select('program_id')
-              ->from('academic_session_program')
-              ->where('academic_session_id', $session->id);
-    })->orderBy('name')->get();
+    // Filter programs by structure according to session type
+   $programs = Program::where('structure', 'semester')->orderBy('name')->get();
 
-    // 🔧 Add this to fix the error
-    $academicSessions = AcademicSession::where('type', $session->type)
-                            ->orderByDesc('year')->get(['id', 'year']);
+
+
+    $academicSessions = AcademicSession::orderByDesc('year')
+        ->get(['id', 'year', 'term', 'odd_even', 'type']);
 
     $view = $session->type === 'diploma'
         ? 'admin.examination.diploma.admit-card'
@@ -105,136 +138,174 @@ public function uploadMarksDiploma(AcademicSession $session)
         'session'           => $session,
         'institutes'        => $institutes,
         'programs'          => $programs,
-        'academicSessions'  => $academicSessions, // ✅ this line fixes the Blade error
+        'academicSessions'  => $academicSessions,
     ]);
 }
-
 
 public function downloadBulkAdmitCards(Request $request)
 {
     $validated = $request->validate([
-        'session_id'   => 'required|exists:academic_sessions,id',
-        'institute_id' => 'required|exists:institutes,id',
-        'program_id'   => 'required|exists:programs,id',
-        'semester'     => 'nullable|integer|min:1|max:10',
-        'year'         => 'nullable|integer|min:1|max:6',
+        'academic_session_id' => 'required|exists:academic_sessions,id',
+        'institute_id'        => 'required|exists:institutes,id',
+        'program_id'          => 'required|exists:programs,id',
+        'semester'            => 'nullable|integer|min:1|max:10',
+        'year'                => 'nullable|integer|min:1|max:6',
     ]);
 
-    $session = AcademicSession::findOrFail($validated['session_id']);
-    $program = Program::findOrFail($validated['program_id']);
-    $structure = $program->structure ?? 'semester';
+    $session = AcademicSession::findOrFail($validated['academic_session_id']);
 
-    // ✅ Define these to avoid "undefined variable" in compact()
-    $semester = $validated['semester'] ?? null;
-    $year = $validated['year'] ?? null;
+    // Get the selected program with pivot data from academic_session_program
+    $program = $session->programs()->where('programs.id', $validated['program_id'])->first();
 
-    $level = $structure === 'yearly' ? $year : $semester;
+    if (!$program) {
+        return back()->with('error', 'Program not found for the selected Academic Session.');
+    }
+
+    $structure = $program->pivot->structure ?? 'semester';
+    $level = $structure === 'yearly' ? $validated['year'] : $validated['semester'];
 
     if (!$level) {
         return back()->with('error', ucfirst($structure) . ' value is required.');
     }
 
-    // Mapping check
-    $isMapped = DB::table('academic_session_program')
-        ->where('academic_session_id', $session->id)
-        ->where('program_id', $program->id)
-        ->exists();
-
-    if (!$isMapped) {
-        return back()->with('error', 'Programme not mapped to the selected session.');
-    }
-
-    // Fetch students
     $students = Student::with([
-        'institute:id,name',
-        'program:id,name,structure',
-        'appearingCourses' => function ($q) use ($structure, $level) {
-            $q->whereHas('programs', function ($q2) use ($structure, $level) {
-                $q2->where("course_program.$structure", $level);
-            });
-            $q->select('courses.id', 'course_code', 'course_title');
-        }
-    ])
-    ->where([
-        ['program_id', $program->id],
-        ['institute_id', $validated['institute_id']],
-        ['academic_session_id', $session->id],
-    ])
-    ->orderBy('nchm_roll_number')
-    ->get()
-    ->filter(function ($student) use ($structure, $level) {
-        return $student->getPassedAppearingCourses($level)->isNotEmpty();
-    })->values();
+            'institute:id,name',
+            'program:id,name',
+            'appearingCourses' => function ($q) use ($structure, $level) {
+                $q->whereHas('programs', function ($q2) use ($structure, $level) {
+                    $q2->where("course_program.$structure", $level);
+                })->select('courses.id', 'course_code', 'course_title');
+            }
+        ])
+        ->where([
+            ['program_id', $program->id],
+            ['institute_id', $validated['institute_id']],
+            ['academic_session_id', $session->id],
+        ])
+        ->orderBy('nchm_roll_number')
+        ->get()
+        ->filter(fn($student) => $student->getPassedAppearingCourses($level)->isNotEmpty())
+        ->values();
 
     if ($students->isEmpty()) {
         return back()->with('error', 'No eligible students found — all failed mid-term or missing subjects.');
     }
 
-    // ✅ This now works safely
     $pdf = Pdf::loadView('pdf.bulk_admitcards', compact(
-        'students', 'session', 'program', 'structure', 'semester', 'year'
+        'students', 'session', 'program', 'structure', 'level'
     ));
 
     return $pdf->download('admitcards_' . now()->format('Ymd_His') . '.pdf');
 }
 
 
+// public function downloadSingleAdmitCard(Request $request)
+// {
+//     $validated = $request->validate([
+//         'academic_session_id' => 'required|exists:academic_sessions,id',
+//         'nchm_roll_number'    => 'required|string',
+//         'semester'            => 'nullable|integer|min:1|max:10',
+//         'year'                => 'nullable|integer|min:1|max:6',
+//     ]);
 
+//     $session = AcademicSession::findOrFail($validated['academic_session_id']);
+//    $programs = Program::where('structure', 'semester')->orderBy('name')->get();
+//     $student = Student::with([
+//             'institute:id,name',
+//             'program:id,name',
+//             'appearingCourses' => function ($q) use ($validated) {
+//                 if ($validated['semester']) {
+//                     $q->whereHas('programs', fn($q2) => $q2->where('course_program.semester', $validated['semester']));
+//                 } elseif ($validated['year']) {
+//                     $q->whereHas('programs', fn($q2) => $q2->where('course_program.year', $validated['year']));
+//                 }
+//                 $q->select('courses.id', 'course_code', 'course_title');
+//             }
+//         ])
+//         ->where('nchm_roll_number', $validated['nchm_roll_number'])
+//         ->where('academic_session_id', $session->id)
+//         ->first();
+
+//     if (!$student) {
+//         return back()->with('error', 'Student not found for the given Roll Number and Academic Session.');
+//     }
+
+//     $program = $session->programs()->where('programs.id', $student->program_id)->first();
+//     $structure = $program?->pivot->structure ?? 'semester';
+//     $level = $structure === 'yearly' ? $validated['year'] : $validated['semester'];
+
+//     if (!$level) {
+//         return back()->with('error', ucfirst($structure) . ' value is required.');
+//     }
+
+//     if ($student->getPassedAppearingCourses($level)->isEmpty()) {
+//         return back()->with('error', 'Mid-term not cleared for the selected ' . $structure . ' — Admit Card not available.');
+//     }
+
+//     $pdf = Pdf::loadView('pdf.admitcard', compact(
+//         'student', 'session', 'program', 'structure', 'level'
+//     ));
+
+//     return $pdf->download('admitcard_' . $student->nchm_roll_number . '.pdf');
+// }
 public function downloadSingleAdmitCard(Request $request)
 {
     $validated = $request->validate([
-        'session_id'       => 'required|exists:academic_sessions,id',
-        'nchm_roll_number' => 'required|string',
-        'semester'         => 'nullable|integer|min:1|max:10',
-        'year'             => 'nullable|integer|min:1|max:6',
+        'academic_session_id' => 'required|exists:academic_sessions,id',
+        'nchm_roll_number'    => 'required|string',
+        'semester'            => 'nullable|integer|min:1|max:10',
+        'year'                => 'nullable|integer|min:1|max:6',
     ]);
 
-    $session = AcademicSession::findOrFail($validated['session_id']);
-
-    $student = Student::with([
-        'institute:id,name',
-        'program:id,name,structure',
-        'appearingCourses' => function ($q) use ($validated) {
-            if (isset($validated['semester'])) {
-                $q->whereHas('programs', function ($q2) use ($validated) {
-                    $q2->where('course_program.semester', $validated['semester']);
-                });
-            } elseif (isset($validated['year'])) {
-                $q->whereHas('programs', function ($q2) use ($validated) {
-                    $q2->where('course_program.year', $validated['year']);
-                });
-            }
-            $q->select('courses.id', 'course_code', 'course_title');
-        }
-    ])
-    ->where('nchm_roll_number', $validated['nchm_roll_number'])
-    ->where('academic_session_id', $session->id)
-    ->first();
-
-    if (!$student) {
-        return back()->with('error', 'Student not found for the given Roll Number and Session.');
-    }
-
-    $program = $student->program;
-    $structure = $program->structure ?? 'semester';
+    $session = AcademicSession::findOrFail($validated['academic_session_id']);
+    $structure = 'semester'; // or 'yearly'
     $level = $structure === 'yearly' ? $validated['year'] : $validated['semester'];
-  $semester = $validated['semester'] ?? null;
-    $year = $validated['year'] ?? null;
+
     if (!$level) {
         return back()->with('error', ucfirst($structure) . ' value is required.');
     }
 
-    if ($student->getPassedAppearingCourses($level)->isEmpty()) {
+    // Step 1: Try fetching from students
+    $student = Student::with(['program', 'institute'])
+        ->where('nchm_roll_number', $validated['nchm_roll_number'])
+        ->where(function ($query) use ($session) {
+            $query->where('academic_session_id', $session->id)
+                  ->orWhere('original_academic_session_id', $session->id);
+        })
+        ->first();
+
+    // Step 2: If not found, try history
+    if (!$student) {
+        $history = \App\Models\StudentSessionHistory::with(['student.program', 'student.institute'])
+            ->whereHas('student', fn($q) =>
+                $q->where('nchm_roll_number', $validated['nchm_roll_number']))
+            ->where('academic_session_id', $session->id)
+            ->where('semester', $level)
+            ->first();
+
+        if (!$history) {
+            return back()->with('error', 'No record found for given Roll Number and Academic Session.');
+        }
+
+        $student = $history->student;
+        $program = $student->program;
+        $structure = 'semester';
+    } else {
+        $program = $student->program;
+    }
+
+    // Ensure student is eligible for admit card
+    if (method_exists($student, 'getPassedAppearingCourses') &&
+        $student->getPassedAppearingCourses($level)->isEmpty()) {
         return back()->with('error', 'Mid-term not cleared for the selected ' . $structure . ' — Admit Card not available.');
     }
-  // ✅ This now works safely
-  $pdf = Pdf::loadView('pdf.admitcard', compact(
-    'student', 'session', 'program', 'structure', 'semester', 'year'
-));
+
+    $pdf = Pdf::loadView('pdf.admitcard', compact(
+        'student', 'session', 'program', 'structure', 'level'
+    ));
 
     return $pdf->download('admitcard_' . $student->nchm_roll_number . '.pdf');
 }
-
 
 
     /* ─────────────── REGULAR RESULTS ─────────────── */
@@ -252,40 +323,121 @@ public function downloadSingleAdmitCard(Request $request)
 // }
 
 /* ─────────────── REGULAR → “Process Results” landing ─────────────── */
-public function showResultPageRegular(AcademicSession $session, Request $request)
-{
-    abort_if($session->type !== 'regular', 404);
 
-    $sessions = AcademicSession::where('type', 'regular')
-                               ->orderByDesc('year')
-                               ->get(['id','year']);
+
+
+// // public function showResultPageRegular(Request $request)
+// // {
+// //     $sessionId = session('exam_session_id');
+
+// //     if (!$sessionId) {
+// //         return redirect()->back()->with('error', 'No academic session selected.');
+// //     }
+
+// //     $session = AcademicSession::find($sessionId);
+
+// //     if (!$session || $session->type !== 'regular') {
+// //         abort(404);
+// //     }
+
+// //     $academicSessions = AcademicSession::where('type', 'regular')
+// //         ->orderByDesc('year')
+// //         ->get(['id', 'year', 'term', 'odd_even', 'type']);
+
+// //     $programs = Program::whereIn('id', function ($q) use ($session) {
+// //         $q->select('program_id')
+// //             ->from('academic_session_program')
+// //             ->where('academic_session_id', $session->id)
+// //             ->where('structure', 'semester');
+// //     })->orderBy('name')->get();
+
+// //     $programId = $request->input('program_id');
+// //     $semester  = $request->input('semester');
+
+// //     if ($programId && $semester) {
+// //         $program = Program::findOrFail($programId);
+// //         $matrix  = app(ResultsController::class)->marksMatrix($programId, $semester);
+
+// //         return view('admin.examination.regular.results', array_merge($matrix, [
+// //             'session'          => $session,
+// //             'academicSessions' => $academicSessions,
+// //             'programs'         => $programs,
+// //             'program'          => $program,
+// //             'programId'        => $programId,
+// //             'semester'         => $semester,
+// //         ]));
+// //     }
+
+// //    return view('admin.examination.regular.results', compact(
+// //     'session', 'academicSessions', 'programs'
+// // ));
+
+// }
+
+public function showResultPageRegular(Request $request)
+{
+    $sessionId = session('exam_session_id');
+
+    if (!$sessionId) {
+        return redirect()->back()->with('error', 'No academic session selected.');
+    }
+
+    $session = AcademicSession::find($sessionId);
+
+    if (!$session || $session->type !== 'regular') {
+        abort(404);
+    }
+
+    $academicSessions = AcademicSession::where('type', 'regular')
+        ->orderByDesc('year')
+        ->get(['id', 'year', 'term', 'odd_even', 'type']);
 
     $programs = Program::whereIn('id', function ($q) use ($session) {
         $q->select('program_id')
-          ->from('academic_session_program')
-          ->where('academic_session_id', $session->id)
-          ->where('structure', 'semester');
+            ->from('academic_session_program')
+            ->where('academic_session_id', $session->id)
+            ->where('structure', 'semester');
     })->orderBy('name')->get();
 
     $programId = $request->input('program_id');
     $semester  = $request->input('semester');
+    $selectedSessionId = $request->input('academic_session_id');
 
-    if ($programId && $semester) {
-        $program = Program::findOrFail($programId);
-        $matrix = app(ResultsController::class)->marksMatrix($programId, $semester);
+    if ($programId && $semester && $selectedSessionId) {
+        $students = Student::with([
+                'program',
+                'marks' => function ($query) use ($selectedSessionId, $semester) {
+                    $query->where('session_id', $selectedSessionId)
+                        ->where('semester', $semester);
+                }
+            ])
+            ->where('academic_session_id', $selectedSessionId)
+            ->where('program_id', $programId)
+            ->orderBy('name')
+            ->get();
 
-        return view('admin.examination.regular.results', array_merge($matrix, [
-            'session'   => $session,
-            'sessions'  => $sessions,
-            'programs'  => $programs,
-            'program'   => $program,
-            'programId' => $programId,
-            'semester'  => $semester,
-        ]));
+        $courseIds = $students->flatMap(fn($student) => $student->marks->pluck('course_id'))
+                              ->unique()
+                              ->values();
+
+        $courses = Course::whereIn('id', $courseIds)->get();
+
+        return view('admin.examination.regular.results', compact(
+            'session',
+            'academicSessions',
+            'programs',
+            'programId',
+            'semester',
+            'selectedSessionId',
+            'students',
+            'courses'
+        ));
     }
 
     return view('admin.examination.regular.results', compact(
-        'session', 'sessions', 'programs'
+        'session',
+        'academicSessions',
+        'programs'
     ));
 }
 
@@ -335,33 +487,113 @@ public function showResultPageRegular(AcademicSession $session, Request $request
         return view("admin.examination.$type.admit-card",
             compact('session', 'institutes', 'programs'));
     }
-  
-    
+
+// public function showRegular(Request $request)
+// {
+//     $academicSessionId = $request->input('academic_session_id');
+//     $programId         = $request->input('program_id');
+//     $semester          = $request->input('semester');
+// $institutes = \App\Models\Institute::all();
+//     // Load dropdown data
+//     $academicSessions = \App\Models\AcademicSession::all();
+//     $programs         = \App\Models\Program::all();
+// $programName = \App\Models\Program::find($programId)?->name;
+//     // No filters yet – just render the page
+//     if (!$academicSessionId || !$programId || !$semester) {
+//         return view('admin.examination.results.index', compact(
+//             'academicSessions', 'programs'
+//         ));
+//     }
+
+//     // Fetch students with their marks
+//     $students = \App\Models\Student::with([
+//             'program',
+//             'marks' => function ($query) use ($academicSessionId, $semester) {
+//                 $query->where('session_id', $academicSessionId)
+//                       ->where('semester', $semester)
+//                       ->with('course');
+//             }
+//         ])
+//         ->where('academic_session_id', $academicSessionId)
+//         ->where('program_id', $programId)
+//         ->orderBy('name')
+//         ->get();
+
+//     // Extract all distinct course IDs
+//     $courseIds = $students->flatMap(fn($student) => $student->marks->pluck('course_id'))
+//                           ->unique()
+//                           ->values();
+
+//     // Load those course models
+//     $courses = \App\Models\Course::whereIn('id', $courseIds)->get();
+
+//    return view('admin.examination.regular.result-view', compact(
+//     'students',
+//     'courses',
+//     'academicSessions',
+//     'programs',
+//     'academicSessionId',
+//     'programId',
+//     'semester',
+//     'programName',
+//      'institutes' 
+// ));
+// }
+
+
 public function showRegular(Request $request)
 {
-    $programId = $request->query('program_id');
-    $semester  = $request->query('semester');
+    $academicSessionId = $request->input('academic_session_id');
+    $programId         = $request->input('program_id');
+    $semester          = $request->input('semester');
 
-    $students = Student::query()
+    $institutes        = \App\Models\Institute::all();
+    $academicSessions  = \App\Models\AcademicSession::orderByDesc('year')->get();
+    $programs          = \App\Models\Program::all();
+    $programName       = \App\Models\Program::find($programId)?->name;
+
+    // Return early if missing inputs
+    if (!$academicSessionId || !$programId || !$semester) {
+        return view('admin.examination.regular.result-view', compact(
+            'academicSessions', 'programs', 'institutes',
+            'academicSessionId', 'programId', 'semester'
+        ));
+    }
+
+    // Fetch students with filtered marks
+    $students = \App\Models\Student::with([
+            'program',
+            'marks' => function ($query) use ($academicSessionId, $semester) {
+                $query->where('session_id', $academicSessionId)
+                      ->where('semester', $semester)
+                      ->with('course');
+            }
+        ])
+        ->where('academic_session_id', $academicSessionId)
         ->where('program_id', $programId)
-        ->where('semester', $semester)
-        ->orderBy('nchm_roll_number')
+        ->orderBy('name')
         ->get();
 
-    $programName = optional($students->first()?->program)->name ?? 'N/A';
+    // Distinct course IDs used in marks
+    $courseIds = $students->flatMap(fn($student) => $student->marks->pluck('course_id'))
+                          ->unique()
+                          ->values();
 
-    $academicSessions = AcademicSession::where('type', 'regular')
-        ->orderByDesc('year')
-        ->get(['id', 'year']);
+    $courses = \App\Models\Course::whereIn('id', $courseIds)->get();
 
-    return view('admin.examination.regular.result-view', [
-        'students'          => $students,
-        'programName'       => $programName,
-        'semester'          => $semester,
-        'institutes'        => Institute::all(),
-        'programs'          => Program::all(),
-        'academicSessions'  => $academicSessions,
-    ]);
+    return view('admin.examination.regular.result-view', compact(
+        'students',
+        'courses',
+        'academicSessions',
+        'programs',
+        'academicSessionId',
+        'programId',
+        'semester',
+        'programName',
+        'institutes'
+    ));
 }
+
+
 
 }

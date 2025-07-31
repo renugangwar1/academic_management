@@ -5,7 +5,7 @@
 @include('admin.examination.partials.navbar')
 
 <div class="container py-4">
-    <h4 class="mb-4 text-primary">Admit Card Download ({{ ucfirst($session->type) }})</h4>
+    <h4 class="mb-4 text-primary">Admit Card Download </h4>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -24,54 +24,59 @@
                 @csrf
                 <input type="hidden" name="session_id" value="{{ $session->id }}">
                 <div class="row g-3">
-                    
+
+                    {{-- Academic Session --}}
                     <div class="col-md-4">
                         <label class="form-label">Academic Session</label>
                         <select class="form-select" name="academic_session_id" required>
                             <option value="">-- Select --</option>
-                            @foreach($academicSessions as $academicSession)
-                                <option value="{{ $academicSession->id }}">{{ $academicSession->year }}</option>
+                            @foreach($academicSessions as $as)
+                                <option value="{{ $as->id }}">{{ $as->display_name }}</option>
                             @endforeach
                         </select>
                     </div>
 
+                    {{-- Institute --}}
                     <div class="col-md-4">
                         <label class="form-label">Institute</label>
                         <select class="form-select" name="institute_id" required>
                             <option value="">-- Select --</option>
-                            @foreach($institutes as $institute)
-                                <option value="{{ $institute->id }}">{{ $institute->name }}</option>
+                            @foreach($institutes as $inst)
+                                <option value="{{ $inst->id }}">{{ $inst->name }}</option>
                             @endforeach
                         </select>
                     </div>
 
-                    <div class="col-md-4">
+                    {{-- Program --}}
+                      <div class="col-md-4">
                         <label class="form-label">Program</label>
-                        <select class="form-select" name="program_id" id="program-select" required>
-                            <option value="">-- Select --</option>
-                            @foreach($programs as $program)
-                                <option value="{{ $program->id }}" data-structure="{{ $program->structure }}">
-                                    {{ $program->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                       <select name="program_id" class="form-select program-select" data-scope="bulk" required>
+    <option value="">-- Select --</option>
+    @foreach ($programs as $prog)
+        <option value="{{ $prog->id }}" data-structure="{{ $prog->structure }}">
+            {{ $prog->name }}
+        </option>
+    @endforeach
+</select>
+
                     </div>
 
-                    <div class="col-md-4" id="semester-wrapper" style="display: none;">
+                    {{-- Semester / Year --}}
+                    <div class="col-md-4 d-none" id="bulk-semester-wrapper">
                         <label class="form-label">Semester</label>
                         <select class="form-select" name="semester">
                             <option value="">-- Select Semester --</option>
-                            @for ($i = 1; $i <= 10; $i++)
+                            @for($i = 1; $i <= 10; $i++)
                                 <option value="{{ $i }}">Semester {{ $i }}</option>
                             @endfor
                         </select>
                     </div>
 
-                    <div class="col-md-4" id="year-wrapper" style="display: none;">
+                    <div class="col-md-4 d-none" id="bulk-year-wrapper">
                         <label class="form-label">Year</label>
                         <select class="form-select" name="year">
                             <option value="">-- Select Year --</option>
-                            @for ($i = 1; $i <= 6; $i++)
+                            @for($i = 1; $i <= 6; $i++)
                                 <option value="{{ $i }}">Year {{ $i }}</option>
                             @endfor
                         </select>
@@ -102,8 +107,8 @@
                         <label class="form-label">Academic Session</label>
                         <select class="form-select" name="academic_session_id" required>
                             <option value="">-- Select --</option>
-                            @foreach($academicSessions as $academicSession)
-                                <option value="{{ $academicSession->id }}">{{ $academicSession->year }}</option>
+                            @foreach($academicSessions as $as)
+                                <option value="{{ $as->id }}">{{ $as->display_name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -113,12 +118,36 @@
                         <input type="text" name="nchm_roll_number" class="form-control" required placeholder="Enter Roll No">
                     </div>
 
-                    <div class="col-md-4">
+                       <div class="col-md-4">
+                        <label class="form-label">Program</label>
+                      <select name="program_id" class="form-select program-select" data-scope="single" required>
+    <option value="">-- Select --</option>
+    @foreach ($programs as $prog)
+        <option value="{{ $prog->id }}" data-structure="{{ $prog->structure }}">
+            {{ $prog->name }}
+        </option>
+    @endforeach
+</select>
+
+                    </div>
+
+                    {{-- Semester / Year --}}
+                    <div class="col-md-4 d-none" id="single-semester-wrapper">
                         <label class="form-label">Semester</label>
-                        <select name="semester" class="form-select" required>
+                        <select name="semester" class="form-select">
                             <option value="">-- Select Semester --</option>
-                            @for ($i = 1; $i <= 10; $i++)
+                            @for($i = 1; $i <= 10; $i++)
                                 <option value="{{ $i }}">Semester {{ $i }}</option>
+                            @endfor
+                        </select>
+                    </div>
+
+                    <div class="col-md-4 d-none" id="single-year-wrapper">
+                        <label class="form-label">Year</label>
+                        <select name="year" class="form-select">
+                            <option value="">-- Select Year --</option>
+                            @for($i = 1; $i <= 6; $i++)
+                                <option value="{{ $i }}">Year {{ $i }}</option>
                             @endfor
                         </select>
                     </div>
@@ -132,35 +161,35 @@
             </form>
         </div>
     </div>
-
 </div>
 @endsection
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const programSelect = document.getElementById('program-select');
-    const semesterWrapper = document.getElementById('semester-wrapper');
-    const yearWrapper = document.getElementById('year-wrapper');
+document.addEventListener('DOMContentLoaded', () => {
+    const selects = document.querySelectorAll('.program-select');
 
-    function toggleStructureDropdown() {
-        const selected = programSelect.options[programSelect.selectedIndex];
-        const structure = selected.getAttribute('data-structure');
+    selects.forEach(select => {
+        select.addEventListener('change', function () {
+            const structure = this.selectedOptions[0]?.dataset.structure;
+            const scope = this.dataset.scope;
 
-        if (structure === 'semester') {
-            semesterWrapper.style.display = 'block';
-            yearWrapper.style.display = 'none';
-        } else if (structure === 'yearly') {
-            yearWrapper.style.display = 'block';
-            semesterWrapper.style.display = 'none';
-        } else {
-            semesterWrapper.style.display = 'none';
-            yearWrapper.style.display = 'none';
-        }
-    }
+            const semWrapper = document.getElementById(`${scope}-semester-wrapper`);
+            const yearWrapper = document.getElementById(`${scope}-year-wrapper`);
 
-    programSelect.addEventListener('change', toggleStructureDropdown);
-    toggleStructureDropdown(); // Trigger on page load
+            // Reset visibility
+            semWrapper.classList.add('d-none');
+            yearWrapper.classList.add('d-none');
+
+            if (structure === 'semester') {
+                semWrapper.classList.remove('d-none');
+            } else if (structure === 'yearly') {
+                yearWrapper.classList.remove('d-none');
+            }
+        });
+    });
 });
 </script>
+
+
 @endpush

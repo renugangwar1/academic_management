@@ -4,10 +4,8 @@
 @section('content')
 @include('admin.examination.partials.navbar')
 
-@php
-    $sessionId = session('exam_session_id');
-    $session = \App\Models\AcademicSession::find($sessionId);
-@endphp
+{{-- Session info removed as requested --}}
+{{-- <pre>Session ID: {{ session('exam_session_id') ?? 'None set' }}</pre> --}}
 
 <div class="container py-5">
     @if(session('success'))
@@ -19,8 +17,6 @@
 
     <h2 class="mb-4 text-center text-primary fw-bold">Manage Examination Activities</h2>
 
-  
-
     <div class="row g-4">
         {{-- Upload Marks --}}
         <div class="col-md-4">
@@ -31,13 +27,16 @@
                         <h5 class="card-title text-secondary mb-0">Upload Marks</h5>
                     </div>
                     <p class="card-text">Upload internal and external marks for students by session, semester, etc.</p>
-                    @if($session && $session->type === 'regular')
-                        <a href="{{ route('admin.regular.exams.marks.upload', $session->id) }}" class="btn btn-outline-secondary w-100">Go to Upload</a>
-                    @elseif($session && $session->type === 'diploma')
-                        <a href="{{ route('admin.diploma.exams.marks.upload', $session->id) }}" class="btn btn-outline-secondary w-100">Go to Upload</a>
-                    @else
-                        <a href="#" class="btn btn-outline-secondary w-100 disabled">No Session Selected</a>
-                    @endif
+                       
+@if ($academicSession)
+    <a href="{{ route('admin.regular.exams.marks.upload', ['session' => $academicSession->id]) }}"
+       class="btn btn-outline-secondary w-100">
+        <i class="bi bi-upload"></i> Upload Marks
+    </a>
+@else
+    <p class="text-danger">No active academic session found.</p>
+@endif
+
                 </div>
             </div>
         </div>
@@ -51,13 +50,9 @@
                         <h5 class="card-title text-success mb-0">Generate Admit Cards</h5>
                     </div>
                     <p class="card-text">Generate admit cards based on academic session, program, semester.</p>
-                    @if($session && $session->type === 'regular')
-                        <a href="{{ route('admin.regular.exams.admitcard', $session->id) }}" class="btn btn-outline-success w-100">Generate Admit Cards</a>
-                    @elseif($session && $session->type === 'diploma')
-                        <a href="{{ route('admin.diploma.exams.admitcard', $session->id) }}" class="btn btn-outline-success w-100">Generate Admit Cards</a>
-                    @else
-                        <a href="#" class="btn btn-outline-success w-100 disabled">No Session Selected</a>
-                    @endif
+                    <a href="{{ route('admin.regular.exams.admitcard') }}" class="btn btn-outline-success w-100">
+                        Generate Admit Cards
+                    </a>
                 </div>
             </div>
         </div>
@@ -71,13 +66,9 @@
                         <h5 class="card-title text-warning mb-0">Process Results</h5>
                     </div>
                     <p class="card-text">Manage and publish student results after exams.</p>
-                    @if($session && $session->type === 'regular')
-                        <a href="{{ route('admin.regular.exams.results', $session->id) }}" class="btn btn-outline-warning w-100">Process Results</a>
-                    @elseif($session && $session->type === 'diploma')
-                        <a href="{{ route('admin.diploma.exams.results', $session->id) }}" class="btn btn-outline-warning w-100">Process Results</a>
-                    @else
-                        <a href="#" class="btn btn-outline-warning w-100 disabled">No Session Selected</a>
-                    @endif
+                  <a href="{{ route('admin.regular.exams.results') }}" class="btn btn-outline-warning w-100">
+    Process Results
+</a>
                 </div>
             </div>
         </div>

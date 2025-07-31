@@ -152,9 +152,12 @@
     <td><strong>ACADEMIC YEAR:</strong></td>
     <td>{{ $session->year ?? 'N/A' }}</td>
 </tr>
+<tr>
+    <td><strong>{{ strtoupper($structure === 'semester' ? 'SEMESTER' : 'YEAR') }}:</strong></td>
+    <td>{{ $level }}</td>
+</tr>
 
 
-<tr><td><strong>SEMESTER:</strong></td><td>{{ $semester }}</td></tr>
 <tr>
   <td><strong>APPEARING SUBJECTS:</strong></td>
   <td>

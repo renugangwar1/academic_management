@@ -1,5 +1,5 @@
 @extends('layouts.admin')
-@section('title', "Result – $programName (Sem $semester)")
+@section('title', "Result – {{ $programName ?? 'Program' }} (Sem {{ $semester }})")
 
 @section('content')
 <div class="container py-4">
@@ -49,12 +49,16 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Academic Session</label>
-                        <select class="form-select" name="academic_session_id" required>
-                            <option value="">-- Select --</option>
-                            @foreach($academicSessions as $academicSession)
-                                <option value="{{ $academicSession->id }}">{{ $academicSession->year }}</option>
-                            @endforeach
-                        </select>
+                                      <select class="form-select" name="academic_session_id" required>
+    <option value="">-- Select --</option>
+    @foreach($academicSessions as $academicSession)
+        <option value="{{ $academicSession->id }}">
+    {{ $academicSession->display_name }}
+</option>
+
+    @endforeach
+</select>
+         
                     </div>
 
                     <div class="col-md-4">
@@ -63,6 +67,7 @@
                             <option value="html">PDF</option>
                         </select>
                     </div>
+                    
 
                     <div class="col-md-12 text-end mt-3">
                         <button type="submit" class="btn btn-primary">

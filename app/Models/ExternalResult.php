@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
         'program_id',
         'course_id',
         'semester',
+          'academic_session_id',
         'internal',
         'external',
         'attendance',
@@ -72,6 +73,10 @@ use Illuminate\Database\Eloquent\Model;
     {
         return $this->belongsTo(Course::class);
     }
+public function academicSession()
+{
+    return $this->belongsTo(AcademicSession::class, 'academic_session_id');
+}
 
 public static function calculateGradePoint($total): float
 {

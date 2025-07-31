@@ -151,47 +151,65 @@
 {{-- Optional custom CSS --}}
 @push('styles')
 <style>
+    /* General Card Animation and Elevation */
+    .stat-card, .quick-link-card {
+        border-radius: 0.75rem;
+        transition: all 0.3s ease-in-out;
+    }
+
+    /* Stat Card Specific */
     .stat-card {
         border-left: 4px solid transparent;
-        transition: border-color 0.3s ease, transform 0.3s ease;
+        background-color: #f8f9fa;
     }
 
     .stat-card:hover {
         transform: translateY(-5px);
+        border-left: 4px solid #0d6efd; /* Bootstrap primary */
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.08);
     }
 
+    /* Quick Links Card */
     .quick-link-card {
-        transition: transform 0.2s ease;
         background-color: #f8f9fa;
-        border-radius: 0.5rem;
+        padding: 1rem;
+        border-left-width: 5px;
+        border-left-style: solid;
     }
 
     .quick-link-card:hover {
         transform: translateY(-4px);
-        background-color: #f1f1f1;
+        background-color: #e9ecef;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
     }
 
-     .stat-card:hover {
-        transform: translateY(-5px);
-        border-left: 4px solid #0d6efd;
-    }
-    a.text-decoration-none:hover .card-body h3 {
+    /* Link Text Styling on Hover */
+    a.text-decoration-none:hover .card-body h3,
+    a.text-decoration-none:hover .fw-semibold {
         text-decoration: underline;
     }
 
-      .list-group-item .btn {
+    /* List Group Buttons Spacing */
+    .list-group-item .btn {
         margin-right: 0.5rem;
     }
 
+    /* Badge Sizing */
     .badge {
         font-size: 0.8rem;
-    }  .list-group-item .btn {
-        margin-right: 0.5rem;
+        padding: 0.4em 0.6em;
+        border-radius: 0.3rem;
     }
 
-    .badge {
-        font-size: 0.8rem;
+    /* Upload item hover */
+    .list-group-item {
+        transition: background-color 0.2s ease;
+    }
+
+    .list-group-item:hover {
+        background-color: #f8f9fc;
     }
 </style>
 @endpush
+
 @endsection

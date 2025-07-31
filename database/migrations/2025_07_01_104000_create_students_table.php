@@ -26,7 +26,7 @@ return new class extends Migration
 
     // 🔧 Fix: Ensure this is defined as unsigned big integer (default of foreignId)
     $table->foreignId('academic_session_id')->constrained()->cascadeOnDelete();
-
+$table->foreignId('original_academic_session_id')->nullable();
     $table->string('email')->nullable();
     $table->string('mobile')->nullable();
     $table->date('date_of_birth')->nullable();

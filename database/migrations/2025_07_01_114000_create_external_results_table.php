@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('program_id')->constrained()->cascadeOnDelete();
             $table->foreignId('course_id')->constrained()->cascadeOnDelete();
             $table->tinyInteger('semester');
+$table->foreignId('academic_session_id')->constrained()->cascadeOnDelete();
 
             $table->smallInteger('internal')->default(0);
             $table->smallInteger('external')->default(0);

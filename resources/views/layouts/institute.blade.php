@@ -72,6 +72,22 @@
                         <i class="fas fa-repeat me-1"></i> Reappears
                     </a>
                 </li>
+@php
+    $user = auth()->user();
+@endphp
+
+<li class="nav-item">
+   <a href="{{ route('institute.message.create') }}" class="nav-link {{ request()->routeIs('institute.message.*') ? 'active' : '' }}">
+    <i class="fas fa-comments me-1"></i> Messages
+    @if($user && $user->role === 'admin' && isset($unreadMessageCount) && $unreadMessageCount > 0)
+        <span class="badge bg-danger ms-2">{{ $unreadMessageCount }}</span>
+    @endif
+</a>
+
+</li>
+
+
+
             </ul>
 
             @auth

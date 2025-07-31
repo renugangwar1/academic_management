@@ -9,17 +9,19 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 
 class ExternalResultsExport implements FromCollection, WithHeadings
 {
-    protected $programId, $semester, $courses;
+    protected $programId, $semester, $sessionId, $courses;
 
-    public function __construct($programId, $semester)
+    public function __construct($sessionId, $programId, $semester)
     {
+        $this->sessionId = $sessionId;
         $this->programId = $programId;
         $this->semester  = $semester;
 
-        // Fetch courses with component flags
+        // Fetch courses only for this program, semester, and session
         $this->courses = Course::whereHas('externalResults', function ($q) {
                 $q->where('program_id', $this->programId)
-                  ->where('semester', $this->semester);
+                  ->where('semester', $this->semester)
+                  ->where('academic_session_id', $this->sessionId);
             })
             ->orderBy('course_code')
             ->get([
@@ -33,6 +35,7 @@ class ExternalResultsExport implements FromCollection, WithHeadings
         return ExternalResult::with(['student', 'course', 'program'])
             ->where('program_id', $this->programId)
             ->where('semester', $this->semester)
+            ->where('academic_session_id', $this->sessionId) // ✅ session filter
             ->get()
             ->groupBy('student_id')
             ->map(function ($results) {
@@ -87,12 +90,10 @@ class ExternalResultsExport implements FromCollection, WithHeadings
                     }
                 }
 
-                // Summary fields
                 $row = array_merge($row, [
                     'Total marks'                 => $totalMarks,
                     'Obtained Marks'              => $obtainedMarks,
                     'Total Course Credit'         => $totalCredits,
-                 
                     'Obtained Credit Point'       => $creditPoints,
                     'SGPA'                        => $results->first()->sgpa,
                     'CGPA'                        => $results->first()->cgpa,
@@ -142,7 +143,6 @@ class ExternalResultsExport implements FromCollection, WithHeadings
             'Total marks',
             'Obtained Marks',
             'Total Course Credit',
-           
             'Obtained Credit Point',
             'SGPA',
             'CGPA',

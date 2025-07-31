@@ -12,7 +12,7 @@
     $admitRoute = $type === 'regular'
         ? route('admin.regular.exams.admitcard', $sessionId)
         : ($type === 'diploma'
-            ? route('admin.diploma.exams.admitcard', $sessionId)
+            ? route('admin.regular.exams.admitcard', $sessionId)
             : '#');
 
     $resultsRoute = $type === 'regular'

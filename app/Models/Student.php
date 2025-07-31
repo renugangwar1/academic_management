@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use App\Models\Mark;
-
+use App\Traits\HasSessionHistory;
 class Student extends Model
 {
     use HasFactory;
@@ -16,7 +16,7 @@ class Student extends Model
     'semester','year',
     'academic_session_id',         
     'email','mobile','date_of_birth',
-    'category','father_name','status',
+    'category','father_name','status','original_academic_session_id',
 ];
 
     protected $casts = [
@@ -163,6 +163,17 @@ public function scopeFailed($query, $semester)
         $q->where('semester', $semester)
           ->whereRaw('LOWER(TRIM(result_status)) != ?', ['pass']);
     });
+}
+
+public function reappearCourses()
+{
+    return $this->hasMany(InternalResult::class)
+                ->where('status', 'REAPPEAR');
+}
+
+public function sessionHistories()
+{
+    return $this->hasMany(StudentSessionHistory::class);
 }
 
 }

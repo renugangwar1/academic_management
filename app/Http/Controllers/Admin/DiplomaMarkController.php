@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin\Marks;
+namespace App\Http\Controllers\Admin;
 
 class DiplomaMarkController extends BaseMarkController
 {

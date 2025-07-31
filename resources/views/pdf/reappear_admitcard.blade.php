@@ -150,10 +150,18 @@
             <tr><td><strong>ACADEMIC YEAR:</strong></td><td>{{ $student->academic_year ?? '2024-25' }}</td></tr>
             <tr><td><strong>SEMESTER:</strong></td><td>{{ $student->semester }}</td></tr>
             <tr><td><strong>DATE OF ISSUE:</strong></td><td>{{ now()->format('d-m-Y') }}</td></tr>
-            <tr>
-                <td><strong>REAPPEAR SUBJECTS:</strong></td>
-                <td>{{ implode(', ', $student->reappearCourses->toArray()) }}</td>
-            </tr>
+  <tr>
+    <td><strong>REAPPEAR SUBJECTS:</strong></td>
+    <td>
+        @forelse ($student->reappearCourses as $course)
+            {{ $course->course_code }}{{ !$loop->last ? ',' : '' }}
+        @empty
+            N/A
+        @endforelse
+    </td>
+</tr>
+
+
         </table>
 
         <div class="photo-placeholder">Paste your photograph</div>

@@ -159,7 +159,8 @@
             <h5 class="mb-0"><i class="bi bi-upload me-1"></i> Import Students via Excel</h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('admin.students.import') }}" method="POST" enctype="multipart/form-data">
+           <form id="importForm" method="POST" enctype="multipart/form-data">
+
                 @csrf
                 <div class="row mb-4">
                     <div class="col-md-4">
@@ -168,7 +169,8 @@
                             <option value="">Select Program</option>
                             @foreach($programs as $program)
                                 <option value="{{ $program->id }}"
-                                    data-template-link="{{ route('admin.students.template.download', $program->id) }}"
+                                   data-template-link="{{ route('admin.programs.students.template', $program->id) }}"
+
                                     data-structure="{{ $program->structure }}">
                                     {{ $program->name }}
                                 </option>
@@ -229,6 +231,19 @@ document.addEventListener('DOMContentLoaded', () => {
         templateBtn.classList.toggle('disabled', !link);
     });
 });
+
+importSelect.addEventListener('change', () => {
+    const selected = importSelect.selectedOptions[0];
+    const programId = selected.value;
+
+    const form = document.getElementById('importForm');
+    form.action = `/admin/students/import/${programId}`;
+
+    const link = selected.dataset.templateLink;
+    templateBtn.href = link || '#';
+    templateBtn.classList.toggle('disabled', !link);
+});
+
 </script>
 @endpush
 @endsection

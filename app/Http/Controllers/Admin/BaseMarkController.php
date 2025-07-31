@@ -37,127 +37,146 @@ abstract class BaseMarkController extends Controller
     }
 
     /* ─────────────────────── STEP‑1  UPLOAD & PREVIEW ─────────────────── */
-    public function uploadMarksFile(Request $r, AcademicSession $session)
-    {
-        $this->guardSession($session);
+    public function uploadMarksFile(Request $request)
+{
+    $validated = $request->validate([
+        'academic_session_id' => 'required|integer',
+        'program_id'          => 'required|integer',
+        'semester'            => 'required|integer',
+        'mark_type'           => 'required|string',
+        'marks_file'          => 'required|file|mimes:xlsx,csv,xls',
+    ]);
 
-        $r->validate([
-            'marks_file' => 'required|file|mimes:xls,xlsx,csv',
-            'mark_type'  => 'required|in:internal,external,attendance,all',
-        ]);
+    $data = Excel::toArray([], $request->file('marks_file'));
 
-        $sheet      = Excel::toCollection(null, $r->file('marks_file'))->first();
-        $header     = $sheet->first()->toArray();
-        $courseCols = array_slice($header, 2);
-        $preview    = [];
+    // Assume rows have: roll_number, name, subject1, subject2...
+    $rows = $data[0];
+    $columns = array_slice($rows[0], 2); // skip roll_number and name
+    unset($rows[0]); // remove header
 
-        foreach ($sheet->skip(1) as $row) {
-            $data = array_values($row->toArray());
-            if (!trim($data[0] ?? '')) continue;
-
-            $rec = ['nchm_roll_number' => trim($data[0]),
-                    'name'             => trim($data[1] ?? '')];
-
-            foreach ($courseCols as $i => $h) {
-                $rec[$h] = $data[$i + 2] ?? null;
-            }
-            $preview[] = $rec;
+    $preview = [];
+    foreach ($rows as $row) {
+        $entry = [
+            'nchm_roll_number' => $row[0],
+            'name' => $row[1],
+        ];
+        foreach ($columns as $i => $subject) {
+            $entry[$subject] = $row[$i + 2] ?? null;
         }
-
-        return view("admin.examination.{$this->programmeType()}.upload-marks", [
-            'session'          => $session,
-            'academicSessions' => AcademicSession::orderByDesc('year')->get(),
-            'programs'         => Program::all(),
-            'previewData'      => $preview,
-            'columns'          => $courseCols,
-            'markType'         => $r->mark_type,
-        ]);
+        $preview[] = $entry;
     }
 
+    session([
+        'programId' => $validated['program_id'],
+        'semester'  => $validated['semester'],
+    ]);
+
+    return view('admin.examination.regular.upload-marks', [
+        'previewData' => $preview,
+        'columns'     => $columns,
+        'markType'    => $validated['mark_type'],
+        'academicSessions' => AcademicSession::all(),
+        'programs'          => Program::all(),
+        'selectedSessionId' => $validated['academic_session_id'],
+    ]);
+}
+
     /* ─────────────────────────── STEP‑2  SAVE ─────────────────────────── */
-    public function finalizeMarks(Request $r, AcademicSession $session)
-    {
-        $this->guardSession($session);
+ public function finalizeMarks(Request $r, AcademicSession $session)
+{
+    $this->guardSession($session);
 
-        $hasFile = $r->hasFile('marks_file');
+    $hasFile = $r->hasFile('marks_file');
 
-        $rules = [
-            'mark_type'  => 'required|in:internal,external,attendance,all',
-            'program_id' => 'required|exists:programs,id',
+    $rules = [
+        'mark_type'  => 'required|in:internal,external,attendance,all',
+        'program_id' => 'required|exists:programs,id',
+    ];
+
+    if ($hasFile) {
+        $rules['marks_file'] = 'file|mimes:xls,xlsx,csv';
+    } else {
+        $rules += [
+            'preview_data' => 'required|array',
+            'columns'      => 'required|array',
+            'semester'     => 'nullable|integer|min:1|max:10',
+            'year'         => 'nullable|integer|min:1|max:6',
         ];
+    }
 
-        if ($hasFile) {
-            $rules['marks_file'] = 'file|mimes:xls,xlsx,csv';
-        } else {
-            $rules += [
-                'preview_data' => 'required|array',
-                'columns'      => 'required|array',
-                'semester'     => 'nullable|integer|min:1|max:10',
-                'year'         => 'nullable|integer|min:1|max:6',
-            ];
-        }
+    $r->validate($rules);
 
-        $r->validate($rules);
+    /* ❶ Single‑step flow – import directly from file */
+    if ($hasFile) {
+        $program = Program::findOrFail($r->program_id);
 
-        /* ❶ Single‑step flow – import directly from file */
-        if ($hasFile) {
-            $program = Program::findOrFail($r->program_id);
-
-            Excel::import(
-                new MarksImport($r->mark_type, $session->id, $program->structure),
-                $r->file('marks_file')
-            );
-
-            return back()->with('success', 'Marks saved successfully.');
-        }
-
-        /* ❷ Two‑step flow – coming from preview */
-        foreach ($r->preview_data as $row) {
-            $student = Student::where('nchm_roll_number', $row['nchm_roll_number'])->first();
-            if (!$student) continue;
-
-            foreach ($r->columns as $label) {
-                if (!preg_match('/^.+?\|(\d+)\s+\(([^)]+)\)$/', $label, $m)) continue;
-                [, $courseId, $suffix] = $m;
-
-                $course = Course::find((int) $courseId);
-                if (!$course) continue;
-
-                $enrolled = DB::table('course_student')
-                              ->where('student_id', $student->id)
-                              ->where('course_id',  $course->id)
-                              ->exists();
-                if (!$enrolled) continue;
-
-                $field = match (strtolower($suffix)) {
-                    'internal'   => 'internal',
-                    'external'   => 'external',
-                    'attendance' => 'attendance',
-                    default      => null,
-                };
-                if (!$field) continue;
-
-                $val = $row[$label] ?? null;
-                if (!is_numeric($val)) continue;
-
-                $term = $r->semester ?? $r->year ?? null;
-
-                $mark = Mark::firstOrNew([
-                    'student_id' => $student->id,
-                    'course_id'  => $course->id,
-                    'session_id' => $session->id,
-                ] + ($student->semester ? ['semester' => $term] : ['year' => $term]));
-
-                $mark->$field = (int) $val;
-                $mark->total  = ($mark->internal   ?? 0)
-                              + ($mark->external   ?? 0)
-                              + ($mark->attendance ?? 0);
-                $mark->save();
-            }
-        }
+        Excel::import(
+            new MarksImport($r->mark_type, $session->id, $program->structure),
+            $r->file('marks_file')
+        );
 
         return back()->with('success', 'Marks saved successfully.');
     }
+
+    /* ❷ Two‑step flow – coming from preview */
+    foreach ($r->preview_data as $row) {
+        $student = Student::where('nchm_roll_number', $row['nchm_roll_number'])->first();
+        if (!$student) continue;
+
+        foreach ($r->columns as $label) {
+            $courseId = null;
+            $suffix   = $r->mark_type; // fallback
+
+            // Try full match with suffix (e.g. "Maths | 10 (Internal)")
+            if (preg_match('/^.+?\|(\d+)\s+\(([^)]+)\)$/', $label, $m)) {
+                [, $courseId, $suffix] = $m;
+            }
+            // Fallback: try just course ID (e.g., "Maths | 10")
+            elseif (preg_match('/^.+?\|(\d+)$/', $label, $m)) {
+                $courseId = $m[1];
+            }
+
+            if (!$courseId) continue;
+
+            $course = Course::find((int) $courseId);
+            if (!$course) continue;
+
+            $enrolled = DB::table('course_student')
+                          ->where('student_id', $student->id)
+                          ->where('course_id',  $course->id)
+                          ->exists();
+            if (!$enrolled) continue;
+
+            $field = match (strtolower($suffix)) {
+                'internal'   => 'internal',
+                'external'   => 'external',
+                'attendance' => 'attendance',
+                default      => null,
+            };
+            if (!$field) continue;
+
+            $val = $row[$label] ?? null;
+            if (!is_numeric($val)) continue;
+
+            $term = $r->semester ?? $r->year ?? null;
+
+            $mark = Mark::firstOrNew([
+                'student_id' => $student->id,
+                'course_id'  => $course->id,
+                'session_id' => $session->id,
+            ] + ($student->semester ? ['semester' => $term] : ['year' => $term]));
+
+            $mark->$field = (int) $val;
+            $mark->total  = ($mark->internal   ?? 0)
+                          + ($mark->external   ?? 0)
+                          + ($mark->attendance ?? 0);
+            $mark->save();
+        }
+    }
+
+    return back()->with('success', 'Marks saved successfully.');
+}
+
 
     /* ───────────────────── DOWNLOAD UPLOADED MARKS ────────────────────── */
     public function downloadUploadedMarks(Request $r)

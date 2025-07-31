@@ -48,7 +48,7 @@
         <div class="card-body">
             <form action="{{ route('admin.programs.import', $program->id) }}" method="POST" enctype="multipart/form-data">
                 @csrf
-
+   <input type="hidden" name="program_id" value="{{ $program->id }}">
                 <div class="row g-3 align-items-end">
                     @if($program->structure === 'semester')
                         <div class="col-md-3">

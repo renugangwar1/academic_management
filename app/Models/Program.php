@@ -24,7 +24,7 @@ class Program extends Model
  public function courses()
     {
         return $this->belongsToMany(Course::class, 'course_program')
-                    ->withPivot('semester')
+                    ->withPivot('semester','year')
                     ->withTimestamps();
     }
 

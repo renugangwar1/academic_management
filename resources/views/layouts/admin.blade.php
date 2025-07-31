@@ -84,11 +84,14 @@
 </head>
 <body>
 
+
 <div class="d-flex">
     <!-- Sidebar -->
     <div class="sidebar d-flex flex-column">
         <h4>Admin Panel</h4>
        <ul class="nav flex-column">
+      
+
     <li class="nav-item">
         <a href="{{ route('admin.dashboard') }}" class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
             <i class="bi bi-speedometer2"></i> Dashboard
@@ -129,7 +132,17 @@
             <i class="bi bi-arrow-repeat"></i> Reappear
         </a>
     </li>
+  <li class="nav-item">
+    <a href="{{ route('admin.messages.index') }}" class="nav-link {{ request()->routeIs('admin.messages.*') ? 'active' : '' }}">
+        <i class="bi bi-envelope-paper"></i> Messages
+        @if(isset($unreadMessageCount) && $unreadMessageCount > 0)
+            <span class="badge bg-danger ms-2">{{ $unreadMessageCount }}</span>
+        @endif
+    </a>
+</li>
+
 </ul>
+
 
 
         <!-- Logout button (optional) -->
@@ -141,6 +154,7 @@
         </div>
     </div>
 
+
     <!-- Main Content -->
     <div class="main-content">
        @yield('content')
@@ -148,5 +162,15 @@
 </div>
 
 @stack('scripts')
+<form action="{{ route('admin.clear.cache') }}" method="POST" onsubmit="return confirm('Clear all caches?')" 
+      class="position-fixed bottom-0 end-0 m-3" style="z-index: 1050;">
+    @csrf
+    <button class="btn btn-warning rounded-circle p-2 d-flex align-items-center justify-content-center" 
+            style="width: 36px; height: 36px;" title="Clear Cache">
+        <i class="bi bi-arrow-clockwise fs-6"></i>
+    </button>
+</form>
+
+
 </body>
 </html>
