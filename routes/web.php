@@ -45,6 +45,8 @@ Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dash
   Route::get('/student-uploads/{upload}/download', [AdminDashboardController::class, 'download'])->name('studentUploads.download');
     Route::post('/student-uploads/{upload}/approve', [AdminDashboardController::class, 'approve'])->name('studentUploads.approve');
     Route::post('/student-uploads/{upload}/reject', [AdminDashboardController::class, 'reject'])->name('studentUploads.reject');
+    Route::post('/messages/read/{id}', [MessageController::class, 'markAsRead'])->name('messages.markAsRead');
+
     /* Academic session views */
     Route::get('academic_sessions/regular',  [AcademicSessionController::class,'listRegular'])->name('academic_sessions.regular.index');
     Route::get('academic_sessions/diploma',  [AcademicSessionController::class,'listDiploma'])->name('academic_sessions.diploma.index');

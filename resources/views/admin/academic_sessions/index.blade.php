@@ -2,11 +2,18 @@
 @section('title', 'Academic Sessions')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="text-primary fw-bold mb-0">Academic Sessions</h3>
-    </div>
+<div class="container-fluid px-4 py-4">
+       <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
 
+                <div>
+                    <h3 class="fw-bold text-primary mb-1">Academic Sessions</h3>
+                    <p class="text-muted small mb-0">Manage and organize academic session timelines.</p>
+                </div>
+</div>
+</div>
+</div>
     @if(session('success'))
         <div class="alert alert-success shadow-sm rounded-pill px-4 py-2">
             {{ session('success') }}

@@ -7,7 +7,7 @@
 {{-- Session info removed as requested --}}
 {{-- <pre>Session ID: {{ session('exam_session_id') ?? 'None set' }}</pre> --}}
 
-<div class="container py-5">
+<div class="container-fluid px-4 py-4">
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             {{ session('success') }}

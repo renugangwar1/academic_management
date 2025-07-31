@@ -2,7 +2,7 @@
 @section('title', 'Add Institute')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
     {{-- ===== Page Title ===== --}}
     <h4 class="mb-4 fw-bold text-primary">Add New Institute</h4>

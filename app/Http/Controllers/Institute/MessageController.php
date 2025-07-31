@@ -60,5 +60,16 @@ class MessageController extends Controller
                 ->withInput()
                 ->withErrors('An unexpected error occurred while sending your message. Please try again later.');
         }
-    }
+ 
+ 
+   }
+
+   public function markAsRead($id)
+{
+    $message = Message::findOrFail($id);
+    $message->update(['is_read' => true]);
+
+    return redirect()->route('admin.dashboard')->with('success', 'Message marked as read.');
+}
+
 }

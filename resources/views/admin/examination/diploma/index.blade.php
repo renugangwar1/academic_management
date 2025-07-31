@@ -9,7 +9,7 @@
     $session = \App\Models\AcademicSession::find($sessionId);
 @endphp
 
-<div class="container py-5">
+<div class="container-fluid px-4 py-4">
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             {{ session('success') }}

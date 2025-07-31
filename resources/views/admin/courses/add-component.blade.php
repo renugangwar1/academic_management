@@ -2,16 +2,24 @@
 @section('title', 'Define Course Components')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
     {{-- Header --}}
-    <div class="mb-4">
-        <h3 class="text-primary fw-bold">
-            Add Components for 
-            <span class="text-dark">{{ $course->course_title }}</span> 
-            <small class="text-muted">({{ $course->course_code }})</small>
-        </h3>
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+    <div class="card-body py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+            <div>
+                <h4 class="fw-bold text-primary mb-1">
+                    Add Components for 
+                    <span class="text-dark">{{ $course->course_title }}</span> 
+                    <small class="text-muted">({{ $course->course_code }})</small>
+                </h4>
+                <p class="text-muted mb-0 small">Define modules, units, or assessments related to this course.</p>
+            </div>
+        </div>
     </div>
+</div>
+
 
     {{-- Form Card --}}
     <div class="card shadow-sm rounded-4">

@@ -4,7 +4,7 @@
 @section('content')
 @include('admin.examination.partials.navbar')
 
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <h4 class="mb-4 text-primary">Admit Card Download </h4>
 
     @if(session('success'))

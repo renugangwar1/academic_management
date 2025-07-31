@@ -4,7 +4,7 @@
 @section('content')
 @include('admin.examination.partials.navbar')
 
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <h3 class="mb-4 text-primary fw-bold">
         <i class="bi bi-clipboard-data me-2"></i> Process Results – Regular
     </h3>

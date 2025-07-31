@@ -2,7 +2,7 @@
 @section('title', 'Map Course to Program')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <div class="card shadow-sm">
         <div class="card-header bg-info text-white">
             <h4 class="mb-0">Map Course to Program & Semester</h4>

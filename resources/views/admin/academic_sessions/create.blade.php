@@ -2,7 +2,7 @@
 @section('title', isset($academic_session) ? 'Edit Academic Session' : 'Add Academic Session')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <div class="mb-4">
         <h2 class="text-primary fw-bold">
             {{ isset($academic_session) ? 'Edit Academic Session' : 'Add Academic Session' }}

@@ -2,7 +2,7 @@
 @section('title', isset($academic_session) ? 'Edit Session' : 'Create Session')
 
 @section('content')
-<div class="container">
+<div class="container-fluid px-4 py-4">
     <h4 class="mb-3">{{ isset($academic_session) ? 'Edit' : 'Create' }} Academic Session</h4>
 
    <form method="POST" action="{{ isset($academic_session) ? route('admin.academic_sessions.update', $academic_session->id) : route('admin.academic_sessions.store') }}">

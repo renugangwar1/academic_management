@@ -14,7 +14,7 @@
 
 @include('admin.examination.partials.navbar')
 
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <h2 class="text-primary fw-bold mb-4">Upload Marks</h2>
 {{-- Flash + Validation Errors --}}
 @if ($errors->any())

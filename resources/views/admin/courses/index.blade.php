@@ -2,23 +2,41 @@
 @section('title', 'All Courses')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
-    {{-- Header with actions --}}
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h3 class="text-primary mb-0">Courses List</h3>
-        <div class="d-flex flex-wrap gap-2">
-            <a href="{{ route('admin.courses.components') }}" class="btn btn-warning shadow-sm">
-                <i class="bi bi-plus-square me-1"></i> Add Component
-            </a>
-            <a href="{{ route('admin.courses.bulk.map.form') }}" class="btn btn-dark shadow-sm">
-                <i class="bi bi-layers me-1"></i> Bulk Map
-            </a>
-            <a href="{{ route('admin.courses.create') }}" class="btn btn-success shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> Add Course
-            </a>
+ 
+
+    {{-- Header: Title + Action Buttons --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+                {{-- Title --}}
+                <div>
+                    <h3 class="fw-bold text-primary mb-1">Course Management</h3>
+                    <p class="text-muted small mb-0">Manage, add, and map course components.</p>
+                </div>
+
+                {{-- Action Buttons --}}
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ route('admin.courses.components') }}" class="btn btn-warning shadow-sm rounded-pill px-4 py-2">
+                        <i class="bi bi-plus-square me-1"></i> Add Component
+                    </a>
+                    <a href="{{ route('admin.courses.bulk.map.form') }}" class="btn btn-dark shadow-sm rounded-pill px-4 py-2">
+                        <i class="bi bi-layers me-1"></i> Bulk Map
+                    </a>
+                    <a href="{{ route('admin.courses.create') }}" class="btn btn-success shadow-sm rounded-pill px-4 py-2">
+                        <i class="bi bi-plus-circle me-1"></i> Add Course
+                    </a>
+                </div>
+
+            </div>
         </div>
     </div>
+
+
+
+
 
     {{-- Success Alert --}}
     @if(session('success'))

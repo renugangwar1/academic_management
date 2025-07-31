@@ -2,13 +2,21 @@
 @section('title', 'Add Components')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
-    {{-- Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="text-primary fw-bold mb-0">Select Course to Add Component</h3>
+<div class="card shadow-sm border-0 mb-4 rounded-4">
+    <div class="card-body">
+        <div class="row align-items-end g-3">
+            {{-- Column 1: Title --}}
+            <div class="col-lg-6 col-md-12">
+                <div>
+                    <h3 class="fw-bold text-primary mb-1">Select Course to Add Component</h3>
+                    <p class="text-muted small mb-0">Choose a course from the list to manage its components.</p>
+                </div>
+            </div>
+  </div>
     </div>
-
+  </div>
     {{-- Table --}}
     <div class="card shadow-sm border-0 rounded-4">
         <div class="card-body p-0">

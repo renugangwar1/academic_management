@@ -2,10 +2,29 @@
 @section('title', 'Reappear Admit Card')
 
 @section('content')
-@include('admin.examination.partials.navbar')
 
-<div class="container py-4">
-    <h4 class="mb-4 text-danger">Reappear Admit Card Download</h4>
+<div class="container-fluid px-4 py-4">
+    {{-- Header: Title + Add Button --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body">
+            <div class="row align-items-end g-3">
+
+                {{-- Column 1: Title --}}
+                <div class="col-lg-8 col-md-12">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-1">Reappear Admit Card Download</h3>
+                          <p class="text-muted small mb-0">Reappear Admit Card Download</p>
+                    </div>
+                </div>
+
+                {{-- Column 2: Add Button --}}
+              
+
+            </div>
+        </div>
+    </div>
+
+
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>

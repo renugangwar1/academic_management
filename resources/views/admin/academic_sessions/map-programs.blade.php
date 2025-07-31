@@ -2,7 +2,7 @@
 @section('title', 'Map Programs to Session')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <h4 class="mb-4">
         Map Programs to Session: <strong>{{ $session->year }}</strong>
         @if(request()->has('type'))

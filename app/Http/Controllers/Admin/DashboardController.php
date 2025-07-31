@@ -9,6 +9,8 @@ use App\Models\Institute;
 use App\Models\StudentUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Message;
+
 
 class DashboardController extends Controller
 {
@@ -25,12 +27,17 @@ class DashboardController extends Controller
             ->latest()
             ->take(5)
             ->get();
+             $latestUnreadMessage = Message::where('is_read', false)
+                                ->latest()
+                                ->with('institute')
+                                ->first();
 
         return view('admin.dashboard', compact(
             'studentCount',
             'programCount',
             'instituteCount',
-            'recentUploads'
+            'recentUploads',
+            'latestUnreadMessage'
         ));
     }
 

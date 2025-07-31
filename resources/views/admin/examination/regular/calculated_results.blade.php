@@ -2,7 +2,7 @@
 @section('title', 'All Calculated Results (Regular)')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <h3 class="mb-4">All Calculated Results (Regular)</h3>
 
     {{-- ✅ Flash Messages --}}

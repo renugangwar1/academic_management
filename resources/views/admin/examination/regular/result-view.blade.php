@@ -2,7 +2,7 @@
 @section('title', "Result – {{ $programName ?? 'Program' }} (Sem {{ $semester }})")
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <h4 class="mb-4 text-primary">Result Download</h4>
 
     {{-- === Bulk Result Download (With Filters) === --}}

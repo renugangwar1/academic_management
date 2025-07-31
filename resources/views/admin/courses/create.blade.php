@@ -2,7 +2,7 @@
 @section('title', 'Add Course')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
     {{-- Manual Course Form --}}
     <div class="card mb-5 shadow-sm border-0 rounded-4">

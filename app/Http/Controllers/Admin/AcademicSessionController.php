@@ -214,12 +214,15 @@ public function listRegular()
 }
 
 
-    public function listDiploma()
-    {
-       
+public function listDiploma()
+{
+    $sessions = AcademicSession::where('type', 'diploma')
+        ->orderByDesc('created_at')
+        ->get();
 
-        return view('admin.academic_sessions.diploma.index', compact('sessions'));
-    }
+    return view('admin.academic_sessions.diploma.index', compact('sessions'));
+}
+
 
 //     public function showRegular(AcademicSession $academic_session)
 // {

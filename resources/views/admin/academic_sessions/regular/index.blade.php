@@ -2,8 +2,18 @@
 @section('title','Regular Sessions')
 
 @section('content')
-<div class="container">
-    <h4 class="mb-3">Regular Academic Sessions</h4>
+<div class="container-fluid px-4 py-4">
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+    <div class="card-body py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+            <div>
+                <h4 class="fw-bold text-primary mb-1">Regular Academic Sessions</h4>
+                <p class="text-muted small mb-0">Below is the list of academic sessions for regular programmes.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 
     @forelse ($sessions as $session)
         <div class="card mb-3 p-3">

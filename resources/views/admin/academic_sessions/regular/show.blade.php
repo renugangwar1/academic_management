@@ -3,7 +3,7 @@
 @section('title', 'Regular Session Details')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h3 class="mb-1 text-primary">Regular Session</h3>

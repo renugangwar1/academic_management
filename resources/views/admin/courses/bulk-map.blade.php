@@ -2,7 +2,7 @@
 @section('title', 'Bulk Map Courses')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
     <div class="card shadow-sm border-0 rounded-4">
         <div class="card-body">
             <h3 class="mb-4 text-primary fw-bold">Bulk Map Courses to Programs</h3>

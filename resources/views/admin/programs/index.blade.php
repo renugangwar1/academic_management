@@ -2,14 +2,31 @@
 @section('title', 'All Programs')
 
 @section('content')
-<div class="container py-4">
-    {{-- Page Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold text-primary mb-0">Programs</h3>
-        <a href="{{ route('admin.programs.create') }}" class="btn btn-success rounded-pill">
-            <i class="bi bi-plus-circle me-1"></i> Add Program
-        </a>
+<div class="container-fluid px-4 py-4">
+    {{-- Header: Title + Add Button --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body">
+            <div class="row align-items-end g-3">
+
+                {{-- Column 1: Title --}}
+                <div class="col-lg-8 col-md-12">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-1">Program Management</h3>
+                        <p class="text-muted small mb-0">Manage, add, and edit all academic programs.</p>
+                    </div>
+                </div>
+
+                {{-- Column 2: Add Button --}}
+                <div class="col-lg-4 col-md-12 text-end">
+                    <a href="{{ route('admin.programs.create') }}" class="btn btn-success shadow-sm rounded-pill px-4 py-2">
+                        <i class="bi bi-plus-circle me-1"></i> Add Program
+                    </a>
+                </div>
+
+            </div>
+        </div>
     </div>
+
 
     {{-- Flash Message --}}
     @if(session('success'))
@@ -20,7 +37,7 @@
     @endif
 
     {{-- Program Table --}}
-    <div class="table-responsive shadow-sm rounded-4">
+    <div class="table-responsive shadow-sm ">
         <table class="table table-bordered table-hover align-middle mb-0">
             <thead class="table-dark text-white">
                 <tr>

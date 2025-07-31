@@ -62,6 +62,13 @@ public function reply(Request $request, $id)
     return redirect()->back()->with('success', 'Message sent!');
 }
 
+public function markAsRead($id)
+{
+    $message = Message::findOrFail($id);
+    $message->update(['is_read' => true]);
+
+    return redirect()->route('admin.dashboard')->with('success', 'Message marked as read.');
+}
 
 }
 

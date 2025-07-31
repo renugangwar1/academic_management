@@ -2,7 +2,7 @@
 @section('title', 'Edit Program')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
     <div class="card shadow rounded-4 border-0">
         <div class="card-header bg-primary text-white rounded-top-4 d-flex align-items-center justify-content-between">

@@ -1,37 +1,46 @@
 @extends('layouts.admin')
 @section('title', 'Student List')
 
-@section('content')
-<div class="container-fluid py-4" style="min-height: 100vh;">
+@section('content')<div class="container-fluid px-4 py-4" style="min-height: 100vh;">
 
-    {{-- Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        <h4 class="text-primary mb-0">Student List</h4>
-        <a href="{{ route('admin.students.create') }}" class="btn btn-success btn-sm shadow-sm">
-            <i class="bi bi-person-plus"></i> Add Student
-        </a>
+    {{-- Header: Title + Add Student --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h3 class="fw-bold text-primary mb-1">Student Management</h3>
+                    <p class="text-muted small mb-0">Manage enrolled students, filter, search, and export data.</p>
+                </div>
+                <div>
+                    <a href="{{ route('admin.students.create') }}" class="btn btn-success shadow-sm rounded-pill px-4 py-2">
+                        <i class="bi bi-person-plus me-1"></i> Add Student
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- Filters --}}
     <div class="card mb-4 shadow-sm border-0 rounded-4">
         <div class="card-body">
-            <form method="GET" action="{{ route('admin.students.index') }}" class="row gy-2 gx-3 align-items-center">
+            <form method="GET" action="{{ route('admin.students.index') }}" class="row gy-3 gx-3 align-items-end">
 
-                {{-- Per Page --}}
+                {{-- Entries Per Page --}}
                 <div class="col-auto">
                     <label for="per_page" class="form-label small mb-1">Show</label>
                     <select name="per_page" id="per_page" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-                        @foreach([5,10,20,50,100] as $num)
+                        @foreach([5, 10, 20, 50, 100] as $num)
                             <option value="{{ $num }}" {{ $perPage == $num ? 'selected' : '' }}>{{ $num }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-auto">
-                    <span class="form-text">entries</span>
+                <div class="col-auto d-flex align-items-end">
+                    <span class="form-text mb-2">entries</span>
                 </div>
 
                 {{-- Program Filter --}}
                 <div class="col-md-3">
+                    <label class="form-label small mb-1">Program</label>
                     <select name="program_id" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
                         <option value="">-- All Programs --</option>
                         @foreach(\App\Models\Program::all() as $program)
@@ -44,25 +53,29 @@
 
                 {{-- Search --}}
                 <div class="col-md-3">
+                    <label class="form-label small mb-1">Search</label>
                     <input type="text" name="search" class="form-control form-control-sm rounded-pill" placeholder="Search name / roll / email" value="{{ request('search') }}">
                 </div>
 
                 {{-- Search Button --}}
                 <div class="col-auto">
                     <button type="submit" class="btn btn-sm btn-primary rounded-pill shadow-sm">
-                        <i class="bi bi-search"></i> Search
+                        <i class="bi bi-search me-1"></i> Search
                     </button>
                 </div>
 
-                {{-- Export --}}
+                {{-- Export Button --}}
                 <div class="col-auto ms-auto">
-                    <a href="{{ route('admin.students.export', request()->query()) }}" class="btn btn-outline-success btn-sm rounded-pill">
-                        <i class="bi bi-file-earmark-excel"></i> Download Excel
+                    <label class="form-label small mb-1 d-block">&nbsp;</label>
+                    <a href="{{ route('admin.students.export', request()->query()) }}" class="btn btn-outline-success btn-sm rounded-pill shadow-sm">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Download Excel
                     </a>
                 </div>
             </form>
         </div>
     </div>
+
+
 
     {{-- Success Message --}}
     @if(session('success'))
