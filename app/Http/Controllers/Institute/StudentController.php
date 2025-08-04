@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Models\StudentUpload;
 use Illuminate\Support\Str;
 use App\Exports\StudentsExport;
+use Illuminate\Support\Facades\Log;
 class StudentController extends Controller
 {
     /**
@@ -147,45 +148,36 @@ public function import(Request $request)
 }
 
 
-
 public function showEnrolledStudents(Request $request)
 {
     $instituteId = Auth::id();
+
+    // Log incoming filters
+    Log::info('🟡 Filter Request:', $request->only(['search']));
 
     $query = Student::query()
         ->with('program')
         ->where('institute_id', $instituteId);
 
-    if ($request->filled('name')) {
-        $query->where('name', 'like', '%' . $request->name . '%');
-    }
-
-    if ($request->filled('roll_number')) {
-        $query->where('nchm_roll_number', 'like', '%' . $request->roll_number . '%');
-    }
-
-    if ($request->filled('program')) {
-        $query->whereHas('program', function ($q) use ($request) {
-            $q->where('name', 'like', '%' . $request->program . '%');
+    // Simple global search (e.g., name or roll number)
+    if ($request->filled('search')) {
+        $searchTerm = $request->input('search');
+        $query->where(function ($q) use ($searchTerm) {
+            $q->where('name', 'like', "%$searchTerm%")
+              ->orWhere('nchm_roll_number', 'like', "%$searchTerm%");
         });
     }
 
-    if ($request->filled('semester')) {
-        $query->where('semester', 'like', '%' . $request->semester . '%');
-    }
-
-    if ($request->filled('mobile')) {
-        $query->where('mobile', 'like', '%' . $request->mobile . '%');
-    }
-
-    if ($request->filled('email')) {
-        $query->where('email', 'like', '%' . $request->email . '%');
-    }
+    // Log SQL debug info
+    Log::info('🟢 Final SQL Query:', [$query->toSql()]);
+    Log::info('🟢 Query Bindings:', $query->getBindings());
 
     $students = $query->get();
 
     return view('institute.students.list', compact('students'));
 }
+
+
 public function export()
 {
      $instituteId = Auth::id();
