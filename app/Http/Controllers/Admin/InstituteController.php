@@ -104,6 +104,31 @@ class InstituteController extends Controller
     }
 
 
+// public function bulkUpload(Request $request)
+// {
+//     $request->validate([
+//         'file' => 'required|mimes:xlsx,xls'
+//     ]);
+
+//     $import = new InstituteImport;
+
+//     try {
+//         Excel::import($import, $request->file('file'));
+
+//         if ($import->failures()->isNotEmpty()) {
+//             return back()->with([
+//                 'warning' => 'Some rows failed validation.',
+//                 'failures' => $import->failures()
+//             ]);
+//         }
+
+//         return back()->with('success', 'Institutes imported successfully.');
+//     } catch (ValidationException $e) {
+//         return back()->with('error', 'Validation failed: ' . $e->getMessage());
+//     } catch (\Exception $e) {
+//         return back()->with('error', 'Something went wrong: ' . $e->getMessage());
+//     }
+// }
 public function bulkUpload(Request $request)
 {
     $request->validate([
@@ -122,7 +147,20 @@ public function bulkUpload(Request $request)
             ]);
         }
 
-        return back()->with('success', 'Institutes imported successfully.');
+        // Create user logins for newly imported institutes (if not already)
+        $newInstitutes = Institute::whereDate('created_at', now()->toDateString())->get();
+        foreach ($newInstitutes as $institute) {
+            if (!User::where('email', $institute->email)->exists()) {
+                User::create([
+                    'name' => $institute->name,
+                    'email' => $institute->email ?? strtolower($institute->code) . '@nchmct.institute',
+                    'role' => 'institute',
+                    'password' => Hash::make('1234inst'),
+                ]);
+            }
+        }
+
+        return back()->with('success', 'Institutes and user accounts imported successfully.');
     } catch (ValidationException $e) {
         return back()->with('error', 'Validation failed: ' . $e->getMessage());
     } catch (\Exception $e) {

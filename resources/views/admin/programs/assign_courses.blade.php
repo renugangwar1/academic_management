@@ -2,9 +2,20 @@
 @section('title', 'Assign Courses to Students')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
-    <h4 class="mb-4 text-primary fw-bold">Assign Courses – <span class="text-dark">{{ $program->name }}</span></h4>
+    {{-- 🔷 Page Header --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h3 class="fw-bold text-primary mb-1">Assign Courses</h3>
+                <p class="mb-0 text-muted fs-6">
+                    Configure and manage course assignments for 
+                    <strong class="text-dark">{{ $program->name }}</strong>.
+                </p>
+            </div>
+        </div>
+    </div>
 
     {{-- Alert Messages --}}
     @if(session('success'))

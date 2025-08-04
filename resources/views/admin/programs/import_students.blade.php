@@ -1,26 +1,34 @@
 @extends('layouts.admin')
-@section('title', 'Import Students - ' . $program->name)
+
+@section('title', 'Import Students')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-4 py-4">
 
-    {{-- Page Heading --}}
-    <div class="mb-4">
-        <h4 class="fw-bold text-primary">Import Students for Program: <span class="text-dark">{{ $program->name }}</span></h4>
+    {{-- 🔷 Page Header --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h3 class="fw-bold text-primary mb-1">Import Students</h3>
+                <p class="mb-0 text-muted fs-6">
+                    Upload and enroll students in <strong class="text-dark">{{ $program->name }}</strong>.
+                </p>
+            </div>
+        </div>
     </div>
 
-    {{-- Alerts --}}
+    {{-- 🔔 Alerts --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm" role="alert">
             {{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm" role="alert">
             <strong>There were some errors with your upload:</strong>
-            <ul class="mb-0">
+            <ul class="mb-0 small">
                 @foreach($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
@@ -30,25 +38,24 @@
     @endif
 
     @if(session('failures'))
-        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <div class="alert alert-warning alert-dismissible fade show rounded-3 shadow-sm" role="alert">
             <strong>Some rows failed validation:</strong>
-            <ul class="small mb-0">
+            <ul class="mb-0 small">
                 @foreach(session('failures') as $failure)
-                    <li>
-                        Row {{ $failure->row() }} – {{ implode(', ', $failure->errors()) }}
-                    </li>
+                    <li>Row {{ $failure->row() }} – {{ implode(', ', $failure->errors()) }}</li>
                 @endforeach
             </ul>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
-    {{-- Import Form --}}
-    <div class="card border-0 shadow-sm rounded-4 mb-4">
+    {{-- 📤 Import Form --}}
+    <div class="card border-0 shadow-sm  mb-4">
         <div class="card-body">
             <form action="{{ route('admin.programs.import', $program->id) }}" method="POST" enctype="multipart/form-data">
                 @csrf
-   <input type="hidden" name="program_id" value="{{ $program->id }}">
+                <input type="hidden" name="program_id" value="{{ $program->id }}">
+
                 <div class="row g-3 align-items-end">
                     @if($program->structure === 'semester')
                         <div class="col-md-3">
@@ -91,10 +98,12 @@
         </div>
     </div>
 
-    {{-- Imported Students --}}
+    {{-- ✅ Imported Students --}}
     @if(isset($importedStudents) && count($importedStudents) > 0)
         <div class="card border-0 shadow-sm rounded-4 mb-4">
-            <div class="card-header bg-success text-white fw-bold rounded-top-4">Imported Students</div>
+            <div class="card-header bg-success text-white fw-bold rounded-top-4">
+                <i class="bi bi-check-circle me-1"></i> Imported Students
+            </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     @foreach($importedStudents as $student)
@@ -107,10 +116,12 @@
         </div>
     @endif
 
-    {{-- Failed Students --}}
+    {{-- ❌ Failed Rows --}}
     @if(isset($failedStudents) && count($failedStudents) > 0)
         <div class="card border-0 shadow-sm rounded-4 mb-4">
-            <div class="card-header bg-danger text-white fw-bold rounded-top-4">Failed Rows</div>
+            <div class="card-header bg-danger text-white fw-bold rounded-top-4">
+                <i class="bi bi-x-circle me-1"></i> Failed Rows
+            </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     @foreach($failedStudents as $fail)
@@ -124,4 +135,13 @@
     @endif
 
 </div>
+@endsection
+
+@section('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+    });
+</script>
 @endsection

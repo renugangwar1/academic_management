@@ -14,10 +14,6 @@ use Exception;
 
 class StudentPromotionController extends Controller
 {
-
-   
-
-
     public function promote(Request $request)
     {
         if ($request->isMethod('get')) {
@@ -51,11 +47,8 @@ class StudentPromotionController extends Controller
                 return redirect()->route('promotions.manual', $validated);
             }
 
-            $students = match ($validated['promotion_type']) {
-                'passed' => $baseQuery->passed($validated['semester'])->get(),
-                'failed' => $baseQuery->failed($validated['semester'])->get(),
-                default  => $baseQuery->get(),
-            };
+            // ✅ Apply filter
+            $students = $this->filterStudentsForPromotion($baseQuery, $validated['semester'], $validated['program_id']);
 
             if ($students->isEmpty()) {
                 return back()->with('warning', "⚠️ No students matched the promotion criteria.");
@@ -115,11 +108,16 @@ class StudentPromotionController extends Controller
 
             $students = Student::whereIn('id', $validated['student_ids'])->get();
 
-            if ($students->isEmpty()) {
-                return back()->with('warning', 'No valid students selected for manual promotion.');
+            // ✅ Apply eligibility check on manually selected students
+            $eligible = $students->filter(fn($student) =>
+                $this->isEligibleForPromotion($student)
+            );
+
+            if ($eligible->isEmpty()) {
+                return back()->with('warning', 'No eligible students selected for promotion.');
             }
 
-            return $this->promoteStudents($students, $validated['to_session_id'], 'manual');
+            return $this->promoteStudents($eligible, $validated['to_session_id'], 'manual');
         } catch (Exception $e) {
             Log::error('❌ Manual promotion failed', [
                 'error' => $e->getMessage(),
@@ -142,11 +140,17 @@ class StudentPromotionController extends Controller
                 return back()->with('warning', "⚠️ The student is already in Semester {$validated['to_semester']}.");
             }
 
+            // ✅ Check eligibility
+            if (!$this->isEligibleForPromotion($student)) {
+                return back()->with('error', 'Student does not meet promotion criteria (CGPA < 3 or not PASS).');
+            }
+
             DB::beginTransaction();
 
-            $this->logStudentSession($student, 'manual', $student->semester, $validated['to_semester'], $student->academic_session_id);
-
             $fromSemester = $student->semester;
+
+            $this->logStudentSession($student, 'manual', $fromSemester, $validated['to_semester'], $student->academic_session_id);
+
             $student->semester = $validated['to_semester'];
             $student->save();
 
@@ -252,5 +256,25 @@ class StudentPromotionController extends Controller
             'promoted_by'          => auth()->id(),
             'promoted_at'          => now(),
         ]);
+    }
+
+    private function filterStudentsForPromotion($query, $currentSemester, $programId)
+    {
+        return $query->whereHas('externalResults', function ($q) use ($currentSemester, $programId) {
+            $q->where('semester', $currentSemester)
+              ->where('program_id', $programId)
+              ->where('cgpa', '>=', 3)
+              ->where('result_status', 'PASS');
+        })->get();
+    }
+
+    private function isEligibleForPromotion(Student $student): bool
+    {
+        return $student->externalResults()
+            ->where('semester', $student->semester)
+            ->where('program_id', $student->program_id)
+            ->where('cgpa', '>=', 3)
+            ->where('result_status', 'PASS')
+            ->exists();
     }
 }

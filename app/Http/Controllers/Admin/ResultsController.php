@@ -126,7 +126,248 @@ $courses = $program->courses()
         'matrix'   => $matrix,
     ];
 }
+// public function compileFinalResultsRegular(Request $request, $sessionId)
+// {
+//     Log::info("▶️ Entered compileFinalResultsRegular", [
+//         'request'   => $request->all(),
+//         'sessionId' => $sessionId
+//     ]);
 
+//     $validated = $request->validate([
+//         'program_id' => 'required|exists:programs,id',
+//         'semester'   => 'required|integer|min:1|max:10',
+//         'action'     => 'required|in:show,compile',
+//     ]);
+
+//     [$programId, $semester] = [$validated['program_id'], $validated['semester']];
+//     Log::info("✅ Validation passed", compact('programId', 'semester'));
+
+//     if ($validated['action'] === 'show') {
+//         Log::info("👁 Showing results page, not compiling.");
+//         $viewData = [
+//             'session'   => AcademicSession::findOrFail($sessionId),
+//             'sessions'  => AcademicSession::where('type', 'regular')->orderByDesc('year')->get(['id', 'year']),
+//             'programs'  => Program::all(),
+//             'program'   => Program::findOrFail($programId),
+//             'programId' => $programId,
+//             'semester'  => $semester,
+//         ] + $this->marksMatrix($programId, $semester);
+
+//         return view('admin.examination.regular.results', $viewData);
+//     }
+
+//     $studentIds = Student::where('program_id', $programId)
+//         ->where('semester', $semester)
+//         ->pluck('id');
+
+//     Log::info("👨‍🎓 Found students", ['count' => $studentIds->count(), 'ids' => $studentIds]);
+
+//     if ($studentIds->isEmpty()) {
+//         return back()->withErrors(['compile_error' => '❌ No students found for this program and semester.']);
+//     }
+
+//     $marks = Mark::whereIn('student_id', $studentIds)
+//         ->where('semester', $semester)
+//         ->where('session_id', $sessionId)
+//         ->get(['student_id', 'course_id', 'internal', 'external', 'attendance']);
+
+//     Log::info("📝 Found marks", ['count' => $marks->count()]);
+
+//     $markIndex = [];
+//     foreach ($marks as $m) {
+//         $markIndex[$m->student_id][$m->course_id] = $m;
+//     }
+
+//     $courses = Program::findOrFail($programId)
+//         ->courses()
+//         ->wherePivot('semester', $semester)
+//         ->with('component')
+//         ->get(['courses.id', 'courses.credit_value', 'courses.has_external', 'courses.has_attendance']);
+
+//     Log::info("📚 Courses found", ['count' => $courses->count(), 'ids' => $courses->pluck('id')]);
+
+//     if ($courses->isEmpty()) {
+//         return back()->withErrors(['compile_error' => '❌ No courses assigned to this semester for the program.']);
+//     }
+
+//     $defaultedMarks = [];
+
+//     foreach ($studentIds as $sid) {
+//         foreach ($courses as $course) {
+//             $m = $markIndex[$sid][$course->id] ?? null;
+
+//             if (!$m) {
+//                 $m = new \stdClass();
+//                 $m->student_id = $sid;
+//                 $m->course_id = $course->id;
+//                 $m->internal = 0;
+//                 $m->external = 0;
+
+//                 if ($course->has_attendance) {
+//                     $m->attendance = 0;
+//                     $defaultedMarks[] = "Student {$sid} - Course {$course->id} created with default 0s including attendance";
+//                 } else {
+//                     $defaultedMarks[] = "Student {$sid} - Course {$course->id} created with default 0s (no attendance)";
+//                 }
+
+//                 $markIndex[$sid][$course->id] = $m;
+//             }
+
+//             // Ensure attendance is only set if course has it
+//             if ($course->has_attendance && !isset($m->attendance)) {
+//                 $m->attendance = 0;
+//                 $defaultedMarks[] = "Student {$sid} - Course {$course->id}: attendance set to 0";
+//             }
+//         }
+//     }
+
+//     if (!empty($defaultedMarks)) {
+//         Log::warning("⚠️ Defaulted missing/null marks", $defaultedMarks);
+//         session()->flash('warning', '⚠️ Some missing marks were treated as 0.');
+//     }
+
+//     $errors = [];
+//     Log::info("🚀 Beginning DB transaction...");
+
+//     try {
+//         DB::transaction(function () use ($studentIds, $courses, $markIndex, $programId, $semester, $sessionId, &$errors) {
+//             foreach ($studentIds as $sid) {
+//                 $courseGrades = [];
+
+//                 foreach ($courses as $course) {
+//                     try {
+//                         $m = $markIndex[$sid][$course->id] ?? null;
+//                         if (!$m) continue;
+
+//                         $component = $course->component;
+
+//                         $attendance = $course->has_attendance && isset($m->attendance)
+//                             ? (int) $m->attendance
+//                             : 0;
+
+//                         $externalPassing = $component->external_min ?? 30;
+
+//                         $cg = new CourseGrade(
+//                             (float) $course->credit_value,
+//                             (int) $m->internal,
+//                             (int) $m->external,
+//                             $attendance,
+//                             $externalPassing
+//                         );
+
+//                         $courseGrades[] = $cg;
+
+//                         $externalMax = $component?->external_max;
+//                         $percentage = (is_numeric($m->external) && is_numeric($externalMax) && $externalMax > 0)
+//                             ? round(($m->external / $externalMax) * 100, 2)
+//                             : null;
+
+//                         $existing = ExternalResult::where([
+//                             'student_id' => $sid,
+//                             'program_id' => $programId,
+//                             'course_id'  => $course->id,
+//                             'semester'   => $semester,
+//                         ])->first();
+
+//                         ExternalResult::updateOrCreate(
+//                             [
+//                                 'student_id' => $sid,
+//                                 'program_id' => $programId,
+//                                 'course_id'  => $course->id,
+//                                 'semester'   => $semester,
+//                             ],
+//                             [
+//                                 'academic_session_id' => $sessionId,
+//                                 'internal'            => $cg->internal,
+//                                 'external'            => $cg->external,
+//                                 'attendance'          => $cg->attendance,
+//                                 'total'               => $cg->total,
+//                                 'credit'              => $cg->credit,
+//                                 'grade_point'         => $cg->gradePoint,
+//                                 'grade_letter'        => $cg->gradeLetter,
+//                                 'result_status'       => ($cg->external < $externalPassing) ? 'FAIL' : $cg->status,
+//                                 'exam_attempt'        => $existing?->exam_attempt ?? 1,
+//                                 'obtained_marks'      => $m->external,
+//                                 'total_marks'         => $externalMax,
+//                                 'percentage'          => $percentage,
+//                             ]
+//                         );
+//                     } catch (\Exception $e) {
+//                         $errors[] = "❌ Error for Student ID {$sid}, Course ID {$course->id}: " . $e->getMessage();
+//                         Log::error("❌ ExternalResult Error [Student: $sid, Course: {$course->id}]: " . $e->getMessage());
+//                         continue;
+//                     }
+//                 }
+
+//                 if (empty($courseGrades)) {
+//                     Log::warning("⚠️ No course grades generated for Student ID {$sid}");
+//                     continue;
+//                 }
+
+//                 try {
+//                     $sgpa = SemesterGpa::sgpa($courseGrades);
+//                     $semCredits = array_sum(array_column($courseGrades, 'credit'));
+
+//                     $previousSgpas = ResultsSummary::where('student_id', $sid)
+//                         ->where('semester', '<', $semester)
+//                         ->pluck('sgpa')->filter()->toArray();
+
+//                     $cgpa = SemesterGpa::cgpa([...$previousSgpas, $sgpa]);
+
+//                     $prevSummary = ResultsSummary::where('student_id', $sid)
+//                         ->where('semester', '<', $semester)
+//                         ->orderByDesc('semester')
+//                         ->first();
+
+//                 $totalCourses = count($courseGrades);
+// $passedCourses = collect($courseGrades)->where('gradeLetter', '!=', 'F')->count();
+
+// $resultStatus = match (true) {
+//     $passedCourses === $totalCourses => 'PASS',
+//     default                          => 'REAPPEAR',
+// };
+
+//                     ResultsSummary::updateOrCreate(
+//                         ['student_id' => $sid, 'semester' => $semester],
+//                         [
+//                             'program_id'         => $programId,
+//                             'sgpa'               => $sgpa,
+//                             'cgpa'               => $cgpa,
+//                             'cumulative_credits' => ($prevSummary->cumulative_credits ?? 0) + $semCredits,
+//                             'result_status'      => $resultStatus,
+//                         ]
+//                     );
+
+//                     ExternalResult::where('student_id', $sid)
+//                         ->where('semester', $semester)
+//                         ->each(function ($result) use ($sgpa, $cgpa, $resultStatus) {
+//                             $result->grade_letter ??= ExternalResult::calculateGradeLetter($result->total);
+//                             $result->sgpa = $sgpa;
+//                             $result->cgpa = $cgpa;
+//                             $result->result_status = $result->grade_letter === 'F' ? 'FAIL' : $resultStatus;
+//                             $result->save();
+//                         });
+
+//                     Log::info("✅ Result compiled for student: $sid");
+//                 } catch (\Exception $e) {
+//                     $errors[] = "❌ SGPA/CGPA update failed for Student ID {$sid}: " . $e->getMessage();
+//                     Log::error("❌ SGPA/CGPA Error [Student: $sid]: " . $e->getMessage());
+//                 }
+//             }
+//         });
+
+//         if (!empty($errors)) {
+//             Log::warning("⚠️ Partial compile with errors", $errors);
+//             return back()->withErrors(['compile_errors' => implode("\n", $errors)]);
+//         }
+
+//         Log::info("🎉 Final results compiled successfully");
+//         return back()->with('success', '✅ Final results compiled and saved successfully.');
+//     } catch (\Exception $e) {
+//         Log::error('❌ Transaction failed: ' . $e->getMessage());
+//         return back()->withErrors(['db_error' => '❌ Something went wrong during result compilation.']);
+//     }
+// }
 
 public function compileFinalResultsRegular(Request $request, $sessionId)
 {
@@ -183,8 +424,8 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
     $courses = Program::findOrFail($programId)
         ->courses()
         ->wherePivot('semester', $semester)
-        ->with('component') // must have courseComponent or component relationship
-        ->get(['courses.id', 'courses.credit_value', 'courses.has_external']);
+        ->with('component')
+        ->get(['courses.id', 'course_code', 'course_title', 'courses.credit_value', 'courses.has_external', 'courses.has_attendance']);
 
     Log::info("📚 Courses found", ['count' => $courses->count(), 'ids' => $courses->pluck('id')]);
 
@@ -204,16 +445,20 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
                 $m->course_id = $course->id;
                 $m->internal = 0;
                 $m->external = 0;
-                $m->attendance = 0;
-                $markIndex[$sid][$course->id] = $m;
-                $defaultedMarks[] = "Student {$sid} - Course {$course->id} created with default 0s";
-            } else {
-                foreach (['internal', 'external', 'attendance'] as $key) {
-                    if (is_null($m->$key)) {
-                        $m->$key = 0;
-                        $defaultedMarks[] = "Student {$sid} - Course {$course->id}: {$key} set to 0";
-                    }
+
+                if ($course->has_attendance) {
+                    $m->attendance = 0;
+                    $defaultedMarks[] = "Student {$sid} - Course {$course->id} created with default 0s including attendance";
+                } else {
+                    $defaultedMarks[] = "Student {$sid} - Course {$course->id} created with default 0s (no attendance)";
                 }
+
+                $markIndex[$sid][$course->id] = $m;
+            }
+
+            if ($course->has_attendance && !isset($m->attendance)) {
+                $m->attendance = 0;
+                $defaultedMarks[] = "Student {$sid} - Course {$course->id}: attendance set to 0";
             }
         }
     }
@@ -230,6 +475,9 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
         DB::transaction(function () use ($studentIds, $courses, $markIndex, $programId, $semester, $sessionId, &$errors) {
             foreach ($studentIds as $sid) {
                 $courseGrades = [];
+                $failingCourseIds = [];
+                $failingCourseCodes = [];
+                $failingCourseTitles = [];
 
                 foreach ($courses as $course) {
                     try {
@@ -237,7 +485,10 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
                         if (!$m) continue;
 
                         $component = $course->component;
-                        $attendance = (!is_null($component?->attendance_max)) ? (int) $m->attendance : 0;
+                        $attendance = $course->has_attendance && isset($m->attendance)
+                            ? (int) $m->attendance
+                            : 0;
+
                         $externalPassing = $component->external_min ?? 30;
 
                         $cg = new CourseGrade(
@@ -249,6 +500,12 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
                         );
 
                         $courseGrades[] = $cg;
+
+                        if ($cg->gradeLetter === 'F') {
+                            $failingCourseIds[] = $course->id;
+                            $failingCourseCodes[] = $course->course_code ?? 'N/A';
+                            $failingCourseTitles[] = "{$course->course_code} - {$course->course_title}";
+                        }
 
                         $externalMax = $component?->external_max;
                         $percentage = (is_numeric($m->external) && is_numeric($externalMax) && $externalMax > 0)
@@ -270,19 +527,19 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
                                 'semester'   => $semester,
                             ],
                             [
-                                 'academic_session_id' => $sessionId, 
-                                'internal'        => $cg->internal,
-                                'external'        => $cg->external,
-                                'attendance'      => $cg->attendance,
-                                'total'           => $cg->total,
-                                'credit'          => $cg->credit,
-                                'grade_point'     => $cg->gradePoint,
-                                'grade_letter'    => $cg->gradeLetter,
-                                'result_status'   => ($cg->external < $externalPassing) ? 'FAIL' : $cg->status,
-                                'exam_attempt'    => $existing?->exam_attempt ?? 1,
-                                'obtained_marks'  => $m->external,
-                                'total_marks'     => $externalMax,
-                                'percentage'      => $percentage,
+                                'academic_session_id' => $sessionId,
+                                'internal'            => $cg->internal,
+                                'external'            => $cg->external,
+                                'attendance'          => $cg->attendance,
+                                'total'               => $cg->total,
+                                'credit'              => $cg->credit,
+                                'grade_point'         => $cg->gradePoint,
+                                'grade_letter'        => $cg->gradeLetter,
+                                'result_status'       => $cg->gradeLetter === 'F' ? 'REAPPEAR' : 'PASS',
+                                'exam_attempt'        => $existing?->exam_attempt ?? 1,
+                                'obtained_marks'      => $m->external,
+                                'total_marks'         => $externalMax,
+                                'percentage'          => $percentage,
                             ]
                         );
                     } catch (\Exception $e) {
@@ -312,22 +569,29 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
                         ->orderByDesc('semester')
                         ->first();
 
+                    $resultStatus = count($failingCourseCodes) === 0 ? 'PASS' : 'REAPPEAR';
+
                     ResultsSummary::updateOrCreate(
                         ['student_id' => $sid, 'semester' => $semester],
                         [
-                            'program_id'         => $programId,
-                            'sgpa'               => $sgpa,
-                            'cgpa'               => $cgpa,
-                            'cumulative_credits' => ($prevSummary->cumulative_credits ?? 0) + $semCredits,
+                            'program_id'           => $programId,
+                            'sgpa'                 => $sgpa,
+                            'cgpa'                 => $cgpa,
+                            'cumulative_credits'   => ($prevSummary->cumulative_credits ?? 0) + $semCredits,
+                            'result_status'        => $resultStatus,
+                            'failing_course_ids'   => implode(', ', $failingCourseIds),
+                            'failing_course_codes' => implode(', ', $failingCourseCodes),
+                            'failing_courses'      => implode(', ', $failingCourseTitles),
                         ]
                     );
 
                     ExternalResult::where('student_id', $sid)
                         ->where('semester', $semester)
-                        ->each(function ($result) use ($sgpa, $cgpa) {
+                        ->each(function ($result) use ($sgpa, $cgpa, $resultStatus) {
                             $result->grade_letter ??= ExternalResult::calculateGradeLetter($result->total);
                             $result->sgpa = $sgpa;
                             $result->cgpa = $cgpa;
+                            $result->result_status = $result->grade_letter === 'F' ? 'REAPPEAR' : $resultStatus;
                             $result->save();
                         });
 
@@ -335,7 +599,6 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
                 } catch (\Exception $e) {
                     $errors[] = "❌ SGPA/CGPA update failed for Student ID {$sid}: " . $e->getMessage();
                     Log::error("❌ SGPA/CGPA Error [Student: $sid]: " . $e->getMessage());
-                    continue;
                 }
             }
         });
@@ -347,13 +610,11 @@ public function compileFinalResultsRegular(Request $request, $sessionId)
 
         Log::info("🎉 Final results compiled successfully");
         return back()->with('success', '✅ Final results compiled and saved successfully.');
-
     } catch (\Exception $e) {
         Log::error('❌ Transaction failed: ' . $e->getMessage());
         return back()->withErrors(['db_error' => '❌ Something went wrong during result compilation.']);
     }
 }
-
 
 
 public function compileAggregatedResult(Request $request)

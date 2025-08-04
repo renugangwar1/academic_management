@@ -9,8 +9,9 @@
     </h2>
 
     {{-- Summary Cards --}}
-    <div class="row g-4 mb-5">
-        <div class="col-md-4">
+   <div class="row g-4 mb-5">
+    <div class="col-md-4">
+        <a href="{{ route('institute.students.list') }}" class="text-decoration-none">
             <div class="card dashboard-card border-0 shadow-lg h-100 animate__animated animate__fadeInUp">
                 <div class="card-body text-center">
                     <i class="fas fa-user-graduate fa-3x text-primary mb-3"></i>
@@ -18,7 +19,8 @@
                     <h3 class="text-dark fw-bold">{{ $studentCount ?? '--' }}</h3>
                 </div>
             </div>
-        </div>
+        </a>
+    </div>
 
         <div class="col-md-4">
             <div class="card dashboard-card border-0 shadow-lg h-100 animate__animated animate__fadeInUp">

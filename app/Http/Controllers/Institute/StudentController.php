@@ -12,7 +12,7 @@ use App\Exports\StudentsTemplateExport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\StudentUpload;
 use Illuminate\Support\Str;
-
+use App\Exports\StudentsExport;
 class StudentController extends Controller
 {
     /**
@@ -147,4 +147,49 @@ public function import(Request $request)
 }
 
 
+
+public function showEnrolledStudents(Request $request)
+{
+    $instituteId = Auth::id();
+
+    $query = Student::query()
+        ->with('program')
+        ->where('institute_id', $instituteId);
+
+    if ($request->filled('name')) {
+        $query->where('name', 'like', '%' . $request->name . '%');
+    }
+
+    if ($request->filled('roll_number')) {
+        $query->where('nchm_roll_number', 'like', '%' . $request->roll_number . '%');
+    }
+
+    if ($request->filled('program')) {
+        $query->whereHas('program', function ($q) use ($request) {
+            $q->where('name', 'like', '%' . $request->program . '%');
+        });
+    }
+
+    if ($request->filled('semester')) {
+        $query->where('semester', 'like', '%' . $request->semester . '%');
+    }
+
+    if ($request->filled('mobile')) {
+        $query->where('mobile', 'like', '%' . $request->mobile . '%');
+    }
+
+    if ($request->filled('email')) {
+        $query->where('email', 'like', '%' . $request->email . '%');
+    }
+
+    $students = $query->get();
+
+    return view('institute.students.list', compact('students'));
+}
+public function export()
+{
+     $instituteId = Auth::id();
+
+    return Excel::download(new StudentsExport($instituteId), 'enrolled_students.xlsx');
+}
 }

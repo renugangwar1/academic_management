@@ -9,7 +9,14 @@ class ResultsSummary extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'student_id','program_id','semester',
-        'sgpa','cumulative_credits','cgpa'
+        'student_id',
+        'program_id',
+        'semester',
+        'sgpa',
+        'cumulative_credits',
+        'cgpa',
+        'failing_course_ids',
+        'failing_course_codes',
+        'failing_courses',
     ];
 }

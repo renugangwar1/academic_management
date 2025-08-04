@@ -82,11 +82,12 @@ class ExternalResultsExport implements FromCollection, WithHeadings
                         $obtainedCredits  += $res->grade_point > 0 ? $res->credit : 0;
                         $creditPoints     += $res->grade_point * $res->credit;
 
-                        if ($res->result_status === 'FAIL') {
-                            $failingSystemIds[] = $res->course_id;
-                            $failingCodes[]     = $res->course->course_code;
-                            $failingCourses[]   = $res->course->name;
-                        }
+                      if ($res->grade_letter === 'F') {
+    $failingSystemIds[] = $res->course_id;
+    $failingCodes[]     = $res->course->course_code;
+    $failingCourses[]   = $res->course->course_title;
+}
+
                     }
                 }
 

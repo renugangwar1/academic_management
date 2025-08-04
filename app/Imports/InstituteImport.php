@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\Institute;
 use Illuminate\Support\Collection;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Maatwebsite\Excel\Concerns\{
     ToCollection,
@@ -27,30 +28,40 @@ class InstituteImport implements
      * Persist each valid row.
      */
     public function collection(Collection $rows): void
-    {
-        foreach ($rows as $row) {
-            // Excel often treats numeric cells as integers.
-            // Cast EVERYTHING to string so validation & DB agree.
-            $code          = (string) $row['code'];
-            $name          = (string) $row['name'];
-            $contactEmail  = $row['email'] ?? null;
-            $contactPhone  = $row['contact_phone'] ?? null;
+{
+    foreach ($rows as $row) {
+        $code         = (string) $row['code'];
+        $name         = (string) $row['name'];
+        $contactEmail = $row['email'] ?? null;
+        $contactPhone = $row['contact_phone'] ?? null;
 
-            // Skip duplicates (or change to updateOrCreate if desired)
-            if (Institute::where('code', $code)->exists()) {
-                continue;
-            }
+        // Skip if institute already exists
+        if (Institute::where('code', $code)->exists()) {
+            continue;
+        }
 
-            Institute::create([
-                'name'           => $name,
-                'code'           => $code,
-                'email'  => $contactEmail,
-                'contact_phone'  => $contactPhone,
-                'password'       => Hash::make('1234inst'),
+        // Create institute
+        $institute = Institute::create([
+            'name'          => $name,
+            'code'          => $code,
+            'email'         => $contactEmail,
+            'contact_phone' => $contactPhone,
+            'password'      => Hash::make('1234inst'),
+        ]);
+
+        // Create corresponding user account
+        $userEmail = $contactEmail ?? strtolower($code) . '@nchmct.institute';
+
+        if (!User::where('email', $userEmail)->exists()) {
+            User::create([
+                'name'     => $name,
+                'email'    => $userEmail,
+                'role'     => 'institute',
+                'password' => Hash::make('1234inst'),
             ]);
         }
     }
-
+}
     /**
      * Row‑level validation rules.
      */

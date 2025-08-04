@@ -20,78 +20,85 @@
     </div>
 </div>
 
-    {{-- Component Table --}}
-    @if($component)
-    <div class="card shadow-sm rounded-4 mb-4">
-        <div class="card-body p-4">
-            <table class="table table-bordered align-middle mb-0">
-                <thead class="table-light text-center">
-                    <tr>
-                        <th>Component</th>
-                        <th>Max Marks</th>
-                        <th>Min Marks</th>
-                    </tr>
-                </thead>
-                <tbody class="text-center">
-                    @if($course->has_internal)
-                    <tr>
-                        <td>Internal</td>
-                        <td>{{ $component->internal_max }}</td>
-                        <td>{{ $component->internal_min }}</td>
-                    </tr>
-                    @endif
 
-                    @if($course->has_external)
-                    <tr>
-                        <td>External</td>
-                        <td>{{ $component->external_max }}</td>
-                        <td>{{ $component->external_min }}</td>
-                    </tr>
-                    @endif
 
-                    @if($course->has_attendance)
-                    <tr>
-                        <td>Attendance</td>
-                        <td>{{ $component->attendance_max }}</td>
-                        <td>{{ $component->attendance_min }}</td>
-                    </tr>
-                    @endif
+{{-- Component Table --}}
+@if($component)
+<div class="card shadow-sm border-0 rounded-4 mb-4 bg-white">
+    <div class="card-body px-4 py-4">
+        <h4 class="fw-semibold text-dark mb-4">
+            <i class="bi bi-diagram-3 me-2 text-secondary"></i>Component Structure
+        </h4>
 
-                    <tr class="table-info fw-semibold">
-                        <td>Total Marks</td>
-                        <td colspan="2">{{ $component->total_marks }}</td>
-                    </tr>
+        <table class="table table-bordered align-middle text-center shadow-sm">
+            <thead class="bg-light text-dark">
+                <tr>
+                    <th scope="col">Component</th>
+                    <th scope="col">Max Marks</th>
+                    <th scope="col">Min Marks</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white">
+                @if($course->has_internal)
+                <tr>
+                    <td>Internal</td>
+                    <td>{{ $component->internal_max }}</td>
+                    <td>{{ $component->internal_min }}</td>
+                </tr>
+                @endif
 
-                    <tr class="table-warning fw-semibold">
-                        <td>Minimum Passing Marks</td>
-                        <td colspan="2">{{ $component->min_passing_marks }}</td>
-                    </tr>
-                </tbody>
-            </table>
+                @if($course->has_external)
+                <tr>
+                    <td>External</td>
+                    <td>{{ $component->external_max }}</td>
+                    <td>{{ $component->external_min }}</td>
+                </tr>
+                @endif
 
-            {{-- Total From --}}
-            @if($component->total_from)
-            <div class="alert alert-info mt-4 mb-0">
-                <strong>Total Calculated From:</strong> 
-                {{ ucfirst(str_replace('+', ' + ', $component->total_from)) }}
-            </div>
-            @endif
+                @if($course->has_attendance)
+                <tr>
+                    <td>Attendance</td>
+                    <td>{{ $component->attendance_max }}</td>
+                    <td>{{ $component->attendance_min }}</td>
+                </tr>
+                @endif
+
+                <tr class="bg-secondary text-white fw-semibold">
+                    <td>Total Marks</td>
+                    <td colspan="2">{{ $component->total_marks }}</td>
+                </tr>
+
+                <tr class="bg-dark text-white fw-semibold">
+                    <td>Minimum Passing Marks</td>
+                    <td colspan="2">{{ $component->min_passing_marks }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        @if($component->total_from)
+        <div class="alert bg-light border-start border-4 border-dark mt-4 mb-0 rounded-3 shadow-sm">
+            <i class="bi bi-calculator me-2 text-secondary"></i>
+            <strong>Total Calculated From:</strong>
+            {{ ucfirst(str_replace('+', ' + ', $component->total_from)) }}
         </div>
+        @endif
     </div>
-    @else
-        <div class="alert alert-warning">Component structure not defined yet for this course.</div>
-    @endif
+</div>
+@else
+<div class="alert alert-secondary d-flex align-items-center shadow-sm rounded-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-dark"></i>
+    Component structure not defined yet for this course.
+</div>
+@endif
 
-    {{-- Action Buttons --}}
-    <div class="d-flex gap-3 mt-3">
-        <a href="{{ route('admin.courses.components') }}" class="btn btn-secondary rounded-pill px-4">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-        <a href="#" class="btn btn-success rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#copyComponentModal">
-            <i class="bi bi-files"></i> Copy Component to Other Courses
-        </a>
-    </div>
-
+{{-- Action Buttons --}}
+<div class="d-flex flex-wrap gap-3 mt-4">
+    <a href="{{ route('admin.courses.components') }}" class="btn btn-outline-dark rounded-pill px-4">
+        <i class="bi bi-arrow-left me-1"></i> Back
+    </a>
+    <a href="#" class="btn btn-dark rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#copyComponentModal">
+        <i class="bi bi-files me-1"></i> Copy to Other Courses
+    </a>
 </div>
 
 {{-- Modal --}}
@@ -99,21 +106,23 @@
   <div class="modal-dialog modal-lg">
     <form action="{{ route('admin.courses.component.copy', $course->id) }}" method="POST">
         @csrf
-        <div class="modal-content rounded-4 shadow">
-            <div class="modal-header bg-primary text-white rounded-top-4">
-                <h5 class="modal-title" id="copyComponentModalLabel">Copy Component to Other Courses</h5>
+        <div class="modal-content border-0 rounded-4 shadow bg-white">
+            <div class="modal-header bg-dark text-white rounded-top-4">
+                <h5 class="modal-title" id="copyComponentModalLabel">
+                    <i class="bi bi-files me-2"></i>Copy Component to Other Courses
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <p class="mb-2">Select courses to which you want to copy the current component structure:</p>
-                
-                <div class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
+                <p class="mb-3 text-dark">Select the courses to which you want to copy this component structure:</p>
+
+                <div class="border rounded-3 p-3 bg-light shadow-sm" style="max-height: 300px; overflow-y: auto;">
                     @forelse(App\Models\Course::where('id', '!=', $course->id)->orderBy('course_title')->get() as $c)
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" name="target_courses[]" value="{{ $c->id }}" id="course{{ $c->id }}">
-                            <label class="form-check-label" for="course{{ $c->id }}">
-                                {{ $c->course_title }} ({{ $c->course_code }})
+                            <label class="form-check-label text-dark" for="course{{ $c->id }}">
+                                {{ $c->course_title }} <span class="text-muted">({{ $c->course_code }})</span>
                             </label>
                         </div>
                     @empty
@@ -123,11 +132,18 @@
             </div>
 
             <div class="modal-footer bg-light rounded-bottom-4">
-                <button type="submit" class="btn btn-primary rounded-pill px-4">Copy Component</button>
-                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-dark rounded-pill px-4">
+                    <i class="bi bi-check2-circle me-1"></i> Copy Component
+                </button>
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i> Cancel
+                </button>
             </div>
         </div>
     </form>
   </div>
 </div>
+
+
+
 @endsection

@@ -137,8 +137,16 @@ Route::match(['get', 'post'], 'switch/{type}', [ExamSwitchController::class, 'sw
     ->whereIn('type', ['regular', 'diploma'])
     ->name('programme.switch');
 
+Route::post('/reappear/fetch', [ReappearController::class, 'fetchReappearStudents'])
+    ->name('reappear.fetch');
+    Route::post('/reappear/gic/store', [ReappearController::class, 'storeGICMarks'])
+        ->name('admitcard.reappear.gic.store');
+Route::post('/admitcard/reappear/bulk', [ReappearController::class, 'downloadBulkReappearAdmitCards'])->name('admitcard.reappear');
+//    Route::post('/reappears/download',     [ReappearController::class,'downloadReappear'])->name('admitcard.reappear');
+    Route::post('/reappears/download-one', [ReappearController::class,'downloadReappearSingle'])->name('admitcard.reappear.single');
 
 
+    
 Route::get('/messages', [App\Http\Controllers\Admin\MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/chat/{institute_id}', [App\Http\Controllers\Admin\MessageController::class, 'chat'])->name('messages.chat');
 Route::post('/messages/{id}/reply', [App\Http\Controllers\Admin\MessageController::class, 'reply'])->name('messages.reply');
@@ -252,8 +260,7 @@ Route::post('/results/aggregate-all', [ResultsController::class, 'aggregateAll']
     /* Admit card and Reappear downloads */
     Route::post('/admitcard/bulk',         [ExaminationController::class,'downloadBulkAdmitCards'])->name('admitcard.bulk');
     Route::post('/admitcard/single',       [ExaminationController::class,'downloadSingleAdmitCard'])->name('admitcard.single');
-    Route::post('/reappears/download',     [ReappearController::class,'downloadReappear'])->name('admitcard.reappear');
-    Route::post('/reappears/download-one', [ReappearController::class,'downloadReappearSingle'])->name('admitcard.reappear.single');
+ 
 Route::get('/ajax/academic-sessions/{program}', [\App\Http\Controllers\Admin\ReappearController::class, 'getAcademicSessionsByProgram']);
 
     /* Academic session ↔ program mapping */
@@ -292,8 +299,9 @@ Route::middleware(['auth', 'role:institute'])
 
         Route::post('message', [MessageController::class, 'store'])->name('message.store');
         Route::get('message/create', [MessageController::class, 'create'])->name('message.create');
-
-    });
+Route::get('/students/list', [InstituteStudentController::class, 'showEnrolledStudents'])
+    ->name('students.list');
+Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');    });
 
 //  Route::middleware(['auth:institute'])
 //     ->prefix('institute')
@@ -318,12 +326,23 @@ Route::middleware(['auth', 'role:institute'])
 Route::post('admin/users/store-from-institute', [App\Http\Controllers\Admin\UserController::class, 'storeFromInstitute'])
     ->name('admin.users.store-from-institute')
     ->middleware('auth', 'role:admin');
+
+
+    
 Route::post('/admin/clear-cache', function () {
-    Artisan::call('view:clear');
-    Artisan::call('config:clear');
-    Artisan::call('cache:clear');
-    Artisan::call('route:clear');
+    Artisan::call('view:clear');           // Clear compiled views
+    Artisan::call('config:clear');         // Clear cached config
+    Artisan::call('cache:clear');          // Clear application cache
+    Artisan::call('route:clear');          // Clear cached routes
+    Artisan::call('clear-compiled');       // Remove compiled class files
+    Artisan::call('event:clear');          // Clear cached events
+    Artisan::call('optimize:clear');       // Clear all optimized files
 
-    return back()->with('success', 'All caches cleared successfully!');
+    // 🔥 Manually clear Laravel log files
+    $logPath = storage_path('logs');
+    foreach (File::glob($logPath . '/*.log') as $logFile) {
+        File::put($logFile, ''); // Empty each log file
+    }
+
+    return back()->with('success', ' All caches and logs cleared successfully!');
 })->name('admin.clear.cache')->middleware('auth');
-

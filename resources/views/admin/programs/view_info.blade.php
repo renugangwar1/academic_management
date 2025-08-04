@@ -2,11 +2,17 @@
 @section('title', 'Program Info')
 
 @section('content')
-<div class="container py-4">
-    <div class="card shadow rounded">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Program Information</h5>
+<div class="container-fluid px-4 py-4">
+
+    {{-- 🔷 Page Header --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h3 class="fw-bold text-primary mb-1">Program Info</h3>
+               
+            </div>
         </div>
+   
 
         <div class="card-body">
             <div class="mb-3">

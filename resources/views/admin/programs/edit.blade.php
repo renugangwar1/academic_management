@@ -4,8 +4,8 @@
 @section('content')
 <div class="container-fluid px-4 py-4">
 
-    <div class="card shadow rounded-4 border-0">
-        <div class="card-header bg-primary text-white rounded-top-4 d-flex align-items-center justify-content-between">
+    <div class="card shadow  border-0">
+        <div class="card-header bg-primary text-white  d-flex align-items-center justify-content-between">
             <h4 class="mb-0"><i class="bi bi-pencil-square me-2"></i> Edit Program</h4>
         </div>
 
@@ -17,7 +17,7 @@
                 <div class="row g-4 mb-4">
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Program Name <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control shadow-sm rounded-3" required
+                        <input type="text" name="name" class="form-control shadow-sm " required
                                value="{{ old('name', $program->name) }}">
                     </div>
                     <div class="col-md-3">

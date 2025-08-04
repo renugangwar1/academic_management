@@ -13,16 +13,16 @@ class ProgramController extends Controller
     /**
      * Display a list of programs mapped to the logged-in institute.
      */
-   public function index()
+  public function index()
 {
-    $user = Auth::user();
+     $user = Auth::user();
+        $instituteId = $user->id;
 
-    if (!$user || $user->role !== 'institute') {
+    if (!$user) {
         return redirect()->route('login')->with('error', 'You must be logged in as an institute.');
     }
 
-    $instituteId = $user->id;
-
+   
 
     $programs = Program::with('courses')
         ->whereHas('institutes', function ($query) use ($instituteId) {

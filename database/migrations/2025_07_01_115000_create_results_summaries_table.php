@@ -19,6 +19,9 @@ return new class extends Migration
     $table->decimal('sgpa', 4, 2);
     $table->smallInteger('cumulative_credits');
     $table->decimal('cgpa', 4, 2);
+       $table->text('failing_course_ids')->nullable();
+            $table->text('failing_course_codes')->nullable();
+            $table->text('failing_courses')->nullable();
     $table->timestamps();
 });
 
