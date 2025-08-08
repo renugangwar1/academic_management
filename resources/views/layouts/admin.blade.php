@@ -103,6 +103,70 @@ iframe.skiptranslate {
     display: none !important;
 }
 
+
+
+:root {
+    --bg-color: #f8f9fa;
+    --text-color: #212529;
+    --sidebar-bg: #212529;
+    --sidebar-link-color: #ccc;
+    --sidebar-hover-bg: #343a40;
+    --sidebar-active-bg: #0d6efd;
+    --sidebar-active-color: #fff;
+}
+
+body.dark-mode {
+    --bg-color: #1e1e2f;
+    --text-color: #f8f9fa;
+    --sidebar-bg: #111;
+    --sidebar-link-color: #aaa;
+    --sidebar-hover-bg: #333;
+    --sidebar-active-bg: #0d6efd;
+    --sidebar-active-color: #fff;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.sidebar {
+    background-color: var(--sidebar-bg);
+}
+
+.sidebar .nav-link {
+    color: var(--sidebar-link-color);
+}
+
+.sidebar .nav-link:hover {
+    background-color: var(--sidebar-hover-bg);
+    color: var(--sidebar-active-color);
+}
+
+.sidebar .nav-link.active {
+    background-color: var(--sidebar-active-bg);
+    color: var(--sidebar-active-color);
+}
+
+.main-content {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+/* .bi-moon-stars-fill:hover {
+    color: #ffc107;
+    cursor: pointer;
+} */
+.sidebar .collapse .nav-link {
+    font-size: 0.9rem;
+    padding: 8px 20px;
+    color: var(--sidebar-link-color);
+}
+
+.sidebar .collapse .nav-link.active {
+    background-color: #6c757d; /* Gray background */
+    color: #fff;               /* White text */
+}
+
     </style>
 </head>
 <body>
@@ -119,7 +183,7 @@ iframe.skiptranslate {
             <button onclick="toggleLanguage()" class="btn btn-sm btn-outline-light" title="Switch Language">
     <i class="bi bi-translate"></i>
 </button>
-
+  
         </div>
 
         <ul class="nav flex-column">
@@ -153,30 +217,77 @@ iframe.skiptranslate {
                     <i class="bi bi-person-lines-fill"></i> Students
                 </a>
             </li>
+        <li class="nav-item">
+    <a class="nav-link d-flex justify-content-between align-items-center {{ request()->routeIs('admin.examination.*') || request()->routeIs('admin.results.*') ? 'active' : '' }}"
+       data-bs-toggle="collapse" href="#examMenu" role="button" aria-expanded="{{ request()->routeIs('admin.examination.*') || request()->routeIs('admin.results.*') ? 'true' : 'false' }}">
+        <span><i class="bi bi-clipboard-data"></i> Examination</span>
+        <i class="bi bi-chevron-down small"></i>
+    </a>
+    <div class="collapse {{ request()->routeIs('admin.examination.*') || request()->routeIs('admin.results.*') ? 'show' : '' }}" id="examMenu">
+        <ul class="nav flex-column ms-4">
             <li class="nav-item">
-                <a href="{{ route('admin.examination.index') }}" class="nav-link {{ request()->routeIs('admin.examination.*') ? 'active' : '' }}">
-                    <i class="bi bi-clipboard-data"></i> Examination
+                <a href="{{ route('admin.examination.index') }}" 
+                   class="nav-link {{ request()->routeIs('admin.examination.index') ? 'active' : '' }}">
+                    <i class="bi bi-list-ul"></i> Dashboard
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="{{ route('admin.results.download') }}" 
+                   class="nav-link {{ request()->routeIs('admin.results.download') ? 'active' : '' }}">
+                    <i class="bi bi-file-earmark-arrow-down"></i> download Results
+                </a>
+            </li>
+        </ul>
+    </div>
+</li>
+
+
             <li class="nav-item">
                 <a href="{{ route('admin.reappears.index') }}" class="nav-link {{ request()->routeIs('admin.reappears.*') ? 'active' : '' }}">
                     <i class="bi bi-arrow-repeat"></i> Reappear
                 </a>
             </li>
+           <li class="nav-item">
+    <a class="nav-link d-flex justify-content-between align-items-center 
+       {{ request()->routeIs('admin.messages.*') || request()->routeIs('admin.calendar.*') ? 'active' : '' }}"
+       data-bs-toggle="collapse" 
+       href="#eventsMenu" 
+       role="button" 
+       aria-expanded="{{ request()->routeIs('admin.messages.*') || request()->routeIs('admin.calendar.*') ? 'true' : 'false' }}">
+        <span><i class="bi bi-calendar-event"></i> Events</span>
+        <i class="bi bi-chevron-down small"></i>
+    </a>
+    <div class="collapse {{ request()->routeIs('admin.messages.*') || request()->routeIs('admin.calendar.*') ? 'show' : '' }}" id="eventsMenu">
+        <ul class="nav flex-column ms-4">
             <li class="nav-item">
-                <a href="{{ route('admin.messages.index') }}" class="nav-link {{ request()->routeIs('admin.messages.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.messages.index') }}" 
+                   class="nav-link {{ request()->routeIs('admin.messages.index') ? 'active' : '' }}">
                     <i class="bi bi-envelope-paper"></i> Messages
                     @if(isset($unreadMessageCount) && $unreadMessageCount > 0)
                         <span class="badge bg-danger ms-2">{{ $unreadMessageCount }}</span>
                     @endif
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="{{ route('admin.calendar.index') }}" 
+                   class="nav-link {{ request()->routeIs('admin.calendar.index') ? 'active' : '' }}">
+                    <i class="bi bi-calendar3"></i> Calendar
+                </a>
+            </li>
         </ul>
+    </div>
+</li>
+
+
+             
+        </ul>
+
 
         <!-- Logout button -->
         <div class="logout-btn mt-auto">
             <form action="{{ route('logout') }}" method="POST">
                 @csrf
+             
                 <button class="btn btn-outline-light w-100" type="submit"><i class="bi bi-box-arrow-right"></i> Logout</button>
             </form>
         </div>
@@ -191,14 +302,22 @@ iframe.skiptranslate {
 @stack('scripts')
 
 <!-- Clear Cache Button -->
-<form action="{{ route('admin.clear.cache') }}" method="POST" onsubmit="return confirm('Clear all caches?')" 
-      class="position-fixed bottom-0 end-0 m-3" style="z-index: 1050;">
-    @csrf
-    <button class="btn btn-warning rounded-circle p-2 d-flex align-items-center justify-content-center" 
-            style="width: 36px; height: 36px;" title="Clear Cache">
-        <i class="bi bi-arrow-clockwise fs-6"></i>
-    </button>
-</form>
+<div class="position-fixed bottom-0 end-0 m-3 d-flex flex-column align-items-end gap-2" style="z-index: 1050;">
+    
+    <!-- Dark Mode Toggle -->
+    <i class="bi bi-moon-stars-fill fs-5 p-2  " 
+       role="button" onclick="toggleTheme()" title="Toggle Dark Mode" style="cursor: pointer;"></i>
+
+    <!-- Clear Cache Button -->
+    <form action="{{ route('admin.clear.cache') }}" method="POST" onsubmit="return confirm('Clear all caches?')">
+        @csrf
+        <button class="btn btn-warning rounded-circle p-2 d-flex align-items-center justify-content-center shadow" 
+                style="width: 36px; height: 36px;" title="Clear Cache">
+            <i class="bi bi-arrow-clockwise fs-6"></i>
+        </button>
+    </form>
+
+</div>
 
 <!-- Google Translate Script -->
 <script type="text/javascript">
@@ -216,6 +335,22 @@ iframe.skiptranslate {
             select.dispatchEvent(new Event('change'));
         }
     }
+
+
+
+     function toggleTheme() {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+
+    // Apply theme on page load
+    (function () {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+        }
+    })();
 </script>
 <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 

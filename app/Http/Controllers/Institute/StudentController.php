@@ -14,6 +14,8 @@ use App\Models\StudentUpload;
 use Illuminate\Support\Str;
 use App\Exports\StudentsExport;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
 class StudentController extends Controller
 {
     /**
@@ -23,11 +25,11 @@ class StudentController extends Controller
     {
         $instituteId = Auth::id(); // default guard, since user is authenticated
 
-        $students = Student::where('institute_id', $instituteId)
-            ->orderBy('name')
-            ->get();
+        $uploads = StudentUpload::where('institute_id', $instituteId)
+        ->orderByDesc('created_at')
+        ->get();
 
-        return view('institute.students.index', compact('students'));
+       return view('institute.students.index', compact('uploads'));
     }
 
     /**
@@ -102,6 +104,7 @@ $uploads = StudentUpload::where('institute_id', $instituteId)
     /**
      * Import students from uploaded Excel file.
      */
+
 public function import(Request $request)
 {
     $request->validate([
@@ -109,43 +112,44 @@ public function import(Request $request)
     ]);
 
     try {
-        $code = Auth::id(); // Authenticated institute code
+        $instituteId = Auth::id();
 
-        // Convert code to actual numeric id
-        $instituteId = \DB::table('institutes')->where('code', $code)->value('id');
+        // Get institute code (optional)
+        $instituteCode = \DB::table('institutes')
+            ->where('id', $instituteId)
+            ->value('code');
 
-        if (!$instituteId) {
-            return redirect()->back()->with('error', 'Invalid institute login: code not found.');
+        if (!$instituteCode) {
+            return redirect()->back()->with('error', 'Institute code not found.');
         }
 
         $file = $request->file('student_excel');
 
         // Generate a unique filename
-      $instituteCode = \DB::table('institutes')->where('id', $instituteId)->value('code');
         $dateTime = now()->format('Ymd_His');
         $filename = "{$instituteCode}_students_list_{$dateTime}." . $file->getClientOriginalExtension();
 
         // Store file in storage/app/uploads
-        $path = $file->storeAs('uploads', $filename); // returns 'uploads/xyz.xlsx'
+        $path = $file->storeAs('uploads', $filename);
 
-        // Log into student_uploads with filename and full path
+        // Store file info in uploads table (but do NOT import students yet)
         StudentUpload::create([
             'institute_id' => $instituteId,
             'filename'     => $filename,
-            'file_path'    => $path, // ensure this column exists in DB
-            'status'       => 'pending', // optional default
+            'file_path'    => $path,
+            'status'       => 'pending', // will change to 'approved' when admin imports
         ]);
 
-        // Import from the stored file
-        Excel::import(new StudentsImport(null), storage_path('app/' . $path));
-
         return redirect()->route('institute.students.index')
-            ->with('success', 'Students imported successfully.');
+            ->with('success', 'File uploaded successfully. Awaiting admin approval.');
     } catch (\Exception $e) {
         return redirect()->back()
-            ->with('error', 'Import failed: ' . $e->getMessage());
+            ->with('error', 'Upload failed: ' . $e->getMessage());
     }
 }
+
+
+
 
 
 public function showEnrolledStudents(Request $request)
@@ -172,7 +176,7 @@ public function showEnrolledStudents(Request $request)
     Log::info('🟢 Final SQL Query:', [$query->toSql()]);
     Log::info('🟢 Query Bindings:', $query->getBindings());
 
-    $students = $query->get();
+ $students = $query->paginate(15)->withQueryString();
 
     return view('institute.students.list', compact('students'));
 }

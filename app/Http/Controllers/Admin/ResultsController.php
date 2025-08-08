@@ -23,7 +23,7 @@ use App\Models\AggregatedResult;
 use Illuminate\Support\Facades\Log;
 use App\Models\Course;
 use App\Models\Institute;
-
+use App\Models\StudentSessionHistory;
 
 class ResultsController extends Controller
 {
@@ -1114,50 +1114,121 @@ public function calculateExternalResults(Request $request, AcademicSession $sess
 
 
 
+// public function downloadBulkResults(Request $request)
+// {
+//     $request->validate([
+//         'institute_id' => 'required|exists:institutes,id',
+//         'program_id'   => 'required|exists:programs,id',
+//         'format'       => 'required|in:html,excel',
+//         'academic_session_id' => 'required|exists:academic_sessions,id',
+//         'semester' => 'nullable|integer|min:1|max:10'
+//     ]);
+
+//     $selectedSemester = (int) $request->semester;
+
+//     $academicSession = AcademicSession::findOrFail($request->academic_session_id);
+
+//     $students = Student::with(['institute', 'program'])
+//         ->where('institute_id', $request->institute_id)
+//         ->where('program_id', $request->program_id)
+//         ->where('academic_session_id', $request->academic_session_id)
+//         ->orderBy('nchm_roll_number')
+//         ->get();
+
+//     if ($students->isEmpty()) {
+//         return back()->with('error', 'No students found for selected filters.');
+//     }
+
+//     if ($request->format === 'excel') {
+//         return Excel::download(new ExternalResultsExport($students), 'Results.xlsx');
+//     }
+
+//     foreach ($students as $student) {
+//         $results = \App\Models\ExternalResult::where('student_id', $student->id)
+//             ->with('course')
+//             ->where('semester', $selectedSemester)
+//             ->get();
+
+//         $summary = \App\Models\ResultsSummary::where('student_id', $student->id)
+//             ->where('semester', $selectedSemester)
+//             ->first();
+
+//         $student->results = $results;
+//         $student->setRelation('results', $results);
+//         $student->total_credits      = $results->sum('credit');
+//         $student->total_points       = $results->sum(fn ($r) => $r->credit * $r->grade_point);
+//         $student->sgpa               = $results->isNotEmpty() && $student->total_credits > 0
+//                                         ? $student->total_points / $student->total_credits
+//                                         : 0;
+//         $student->cumulative_credits = $summary->cumulative_credits ?? $student->total_credits;
+//         $student->cumulative_points  = $student->cumulative_credits * $student->sgpa;
+//         $student->cgpa               = $summary->cgpa ?? $student->sgpa;
+//     }
+
+//     return view('admin.examination.regular.html.bulk', compact('students', 'selectedSemester', 'academicSession'));
+// }
+
 public function downloadBulkResults(Request $request)
 {
     $request->validate([
-        'institute_id' => 'required|exists:institutes,id',
-        'program_id'   => 'required|exists:programs,id',
-        'format'       => 'required|in:html,excel',
+        'institute_id'        => 'required|exists:institutes,id',
+        'program_id'          => 'required|exists:programs,id',
         'academic_session_id' => 'required|exists:academic_sessions,id',
-        'semester' => 'nullable|integer|min:1|max:10'
+      'format' => 'nullable|in:html,excel,pdf',
+
+        'semester'            => 'required|integer|min:1|max:10'
     ]);
 
     $selectedSemester = (int) $request->semester;
+    $academicSession  = AcademicSession::findOrFail($request->academic_session_id);
 
-    $academicSession = AcademicSession::findOrFail($request->academic_session_id);
+    // 🔹 Get current students
+    $currentStudents = Student::with(['institute', 'program'])
+       ->when($request->institute_id, function ($q) use ($request) {
+    $q->where('institute_id', $request->institute_id);
+})
 
-    $students = Student::with(['institute', 'program'])
-        ->where('institute_id', $request->institute_id)
         ->where('program_id', $request->program_id)
-        ->where('academic_session_id', $request->academic_session_id)
+        ->where(function ($q) use ($academicSession) {
+            $q->where('academic_session_id', $academicSession->id)
+              ->orWhere('original_academic_session_id', $academicSession->id);
+        })
         ->orderBy('nchm_roll_number')
         ->get();
+
+    // 🔹 Get history students
+    $historyStudents = StudentSessionHistory::with(['student.institute', 'student.program'])
+        ->where('academic_session_id', $academicSession->id)
+      ->whereHas('student', function ($q) use ($request) {
+    $q->when($request->institute_id, fn($q) => $q->where('institute_id', $request->institute_id))
+      ->where('program_id', $request->program_id);
+})
+
+        ->get()
+        ->map(fn($history) => $history->student);
+
+    // 🔹 Merge
+    $students = $currentStudents->merge($historyStudents)->unique('id')->values();
 
     if ($students->isEmpty()) {
         return back()->with('error', 'No students found for selected filters.');
     }
 
-    if ($request->format === 'excel') {
-        return Excel::download(new ExternalResultsExport($students), 'Results.xlsx');
-    }
-
+    // 🔹 Attach results
     foreach ($students as $student) {
-        $results = \App\Models\ExternalResult::where('student_id', $student->id)
-            ->with('course')
+        $results = ExternalResult::with('course')
+            ->where('student_id', $student->id)
             ->where('semester', $selectedSemester)
             ->get();
 
-        $summary = \App\Models\ResultsSummary::where('student_id', $student->id)
+        $summary = ResultsSummary::where('student_id', $student->id)
             ->where('semester', $selectedSemester)
             ->first();
 
-        $student->results = $results;
         $student->setRelation('results', $results);
         $student->total_credits      = $results->sum('credit');
-        $student->total_points       = $results->sum(fn ($r) => $r->credit * $r->grade_point);
-        $student->sgpa               = $results->isNotEmpty() && $student->total_credits > 0
+        $student->total_points       = $results->sum(fn($r) => $r->credit * $r->grade_point);
+        $student->sgpa               = $student->total_credits > 0
                                         ? $student->total_points / $student->total_credits
                                         : 0;
         $student->cumulative_credits = $summary->cumulative_credits ?? $student->total_credits;
@@ -1165,8 +1236,25 @@ public function downloadBulkResults(Request $request)
         $student->cgpa               = $summary->cgpa ?? $student->sgpa;
     }
 
+    // 🔹 Output format
+    if ($request->format === 'excel') {
+        return Excel::download(new ExternalResultsExport($students), 'Results.xlsx');
+    }
+
+    if ($request->format === 'pdf') {
+        $pdf = Pdf::loadView('admin.examination.regular.pdf.bulk', [
+            'students'         => $students,
+            'selectedSemester' => $selectedSemester,
+            'academicSession'  => $academicSession
+        ])->setPaper('a4', 'portrait');
+        return $pdf->download('bulk_results.pdf');
+    }
+
+    // Default HTML view
     return view('admin.examination.regular.html.bulk', compact('students', 'selectedSemester', 'academicSession'));
 }
+
+
 
 
 public function downloadResultByRoll(Request $request)
@@ -1178,31 +1266,48 @@ public function downloadResultByRoll(Request $request)
         'academic_session_id'  => 'required|exists:academic_sessions,id',
     ]);
 
-    $academicSession = AcademicSession::findOrFail($request->academic_session_id);
+    $academicSession  = AcademicSession::findOrFail($request->academic_session_id);
+    $selectedSemester = (int) $request->semester;
 
+    //  Current student
     $student = Student::where('nchm_roll_number', $request->nchm_roll_number)
         ->where('program_id', $request->program_id)
-        ->where('academic_session_id', $request->academic_session_id)
+        ->where(function ($q) use ($academicSession) {
+            $q->where('academic_session_id', $academicSession->id)
+              ->orWhere('original_academic_session_id', $academicSession->id);
+        })
         ->first();
+
+    //  If not found, try history
+    if (!$student) {
+        $history = StudentSessionHistory::with('student')
+            ->whereHas('student', function ($q) use ($request) {
+                $q->where('nchm_roll_number', $request->nchm_roll_number)
+                  ->where('program_id', $request->program_id);
+            })
+            ->where('academic_session_id', $academicSession->id)
+            ->first();
+
+        if ($history) {
+            $student = $history->student;
+        }
+    }
 
     if (!$student) {
         return back()->with('error', 'Student not found.');
     }
 
-    $selectedSemester = (int) $request->semester;
-
-    $results = \App\Models\ExternalResult::where('student_id', $student->id)
-        ->with('course')
+    //  Results
+    $results = ExternalResult::with('course')
+        ->where('student_id', $student->id)
         ->where('semester', $selectedSemester)
         ->get();
 
-    $summary = \App\Models\ResultsSummary::where('student_id', $student->id)
+    $summary = ResultsSummary::where('student_id', $student->id)
         ->where('semester', $selectedSemester)
         ->first();
 
-    $student->results = $results;
     $student->setRelation('results', $results);
-
     $student->total_credits      = $results->sum('credit');
     $student->total_points       = $results->sum(fn ($r) => $r->credit * $r->grade_point);
     $student->sgpa               = $results->isNotEmpty() && $student->total_credits > 0
@@ -1212,8 +1317,31 @@ public function downloadResultByRoll(Request $request)
     $student->cumulative_points  = $student->cumulative_credits * $student->sgpa;
     $student->cgpa               = $summary->cgpa ?? $student->sgpa;
 
-    return view('admin.examination.regular.html.single', compact('student', 'results', 'selectedSemester', 'academicSession'));
+    //  PDF Output
+   if ($request->format === 'html') {
+        return view('admin.examination.regular.html.single', [
+            'student'           => $student,
+            'results'           => $results,
+            'selectedSemester'  => $selectedSemester,
+            'academicSession'   => $academicSession
+        ]);
+    }
+
+    if ($request->format === 'pdf') {
+        $pdf = Pdf::loadView('admin.examination.regular.pdf.single', [
+            'student'           => $student,
+            'results'           => $results,
+            'selectedSemester'  => $selectedSemester,
+            'academicSession'   => $academicSession
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('result_' . $student->nchm_roll_number . '.pdf');
+    }
 }
+
+
+
+
 
 
 //////////////////////////
@@ -1331,6 +1459,14 @@ public function downloadExcelRegular(Request $request)
 
 
 
+public function downloadView()
+{
+    $institutes = Institute::orderBy('name')->get();
+    $programs = Program::orderBy('name')->get();
+    $academicSessions = AcademicSession::orderByDesc('year')->get();
+
+    return view('admin.examination.regular.result-view', compact('institutes', 'programs', 'academicSessions'));
+}
 
 
 

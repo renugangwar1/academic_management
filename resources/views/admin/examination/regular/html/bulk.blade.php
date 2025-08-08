@@ -42,12 +42,18 @@
         <button onclick="window.print()">🖨️ Print All Reports</button>
     </div> -->
 
-    @foreach ($students as $student)
-        @include('admin.examination.regular.html.single', ['student' => $student, 'results' => $student->results])
-        @if (!$loop->last)
-            <div class="page-break"></div>
-        @endif
-    @endforeach
+  @foreach ($students as $student)
+    @include('admin.examination.regular.html.single', [
+        'student'           => $student,
+        'results'           => $student->results,
+        'selectedSemester'  => $selectedSemester,
+        'academicSession'   => $academicSession
+    ])
+    @if (!$loop->last)
+        <div class="page-break"></div>
+    @endif
+@endforeach
+
 
 </body>
 </html>

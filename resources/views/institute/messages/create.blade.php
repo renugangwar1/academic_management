@@ -1,147 +1,229 @@
 @extends('layouts.institute')
+@section('title', 'Messages with Admin')
+
 @section('content')
-<div class="container mt-4" style="max-width: 700px; height: 80vh; display: flex; flex-direction: column;">
-    <h4 class="mb-3">Messages with Admin</h4>
-
-    {{-- Chat and Form wrapper --}}
-    <div style="flex: 1; display: flex; flex-direction: column; border: 1px solid #ddd; border-radius: 10px; overflow: hidden;">
-
-        {{-- Chat Box --}}
-        <div id="chat-box"
-            style="flex: 1; overflow-y: auto; padding: 15px; background: #e5ddd5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-            
-            {{-- Success and Errors --}}
-            @if(session('success'))
-                <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
-                    <div class="sent-message" style="background-color: #d4edda; color: #155724;">
-                        ✅ {{ session('success') }}
-                    </div>
-                </div>
-            @endif
-
-            @if ($errors->any())
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            {{-- Messages --}}
-            @if($messages->isEmpty())
-                <p class="text-muted text-center">No messages yet.</p>
-            @else
-              @foreach($messages as $msg)
-    @php
-        // Admin-sent = received; Institute-sent = sent
-        $isSent = !$msg->is_admin;
-    @endphp
-
- <div style="display: flex; justify-content: {{ $isSent ? 'flex-end' : 'flex-start' }}; margin-bottom: 12px;">
-    <div class="{{ $isSent ? 'sent-message' : 'received-message' }}"
-         style="width: 100%; max-width: 85%; padding: 12px 16px; border-radius: 14px;
-                background-color: {{ $isSent ? '#DCF8C6' : '#FFFFFF' }};
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); word-wrap: break-word;">
-        
-        <div style="font-size: 13px; color: {{ $isSent ? '#34B7F1' : '#555' }}; margin-bottom: 6px;">
-            <strong>{{ $isSent ? 'Sent by you' : 'Received from admin' }}</strong>
-        </div>
-
-        <div style="white-space: pre-wrap; font-size: 15px; color: #000; margin-bottom: 6px;">
-            {{ $msg->message }}
-        </div>
-
-        <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(0, 0, 0, 0.5);">
-            <span>{{ $msg->created_at->timezone('Asia/Kolkata')->format('d M Y, h:i A') }}</span>
-            @if($isSent)
-                @if($msg->is_read)
-                    <span style="color: #34B7F1;">&#10003;&#10003;</span>
-                @else
-                    <span style="color: gray;">&#10003;</span>
-                @endif
-            @endif
-        </div>
-    </div>
-</div>
-
-       
-@endforeach
-
-            @endif
-        </div>
-
-        {{-- Message Input Form (Sticky) --}}
-        <form action="{{ route('institute.message.store') }}" method="POST" style="padding: 10px; border-top: 1px solid #ccc; background: #fff;">
-            @csrf
-          <div style="display: flex; gap: 10px; align-items: center;">
-    <textarea name="message" id="message" required
-        style="flex: 1; resize: none; font-size: 15px; padding: 10px 15px; border-radius: 20px; border: 1px solid #ccc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 45px; overflow-y: auto;"
-        placeholder="Type your message...">{{ old('message') }}</textarea>
-
-    <button type="submit" class="btn btn-success"
-        style="border-radius: 20px; padding: 10px 20px; font-weight: 600; white-space: nowrap;">
-        Send
-    </button>
-</div>
-
-            
-        </form>
-    </div>
-</div>
-
-
 <style>
-.sent-message {
-    background-color: #dcf8c6;
-    color: #000;
-    padding: 1px 6px;
-    border-radius: 12px 12px 0 12px;
-    max-width: 75%;
-    word-wrap: break-word;
-    word-break: break-word;
-    font-size: 11px;
-    line-height: 1.05;
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
-    text-align: left; /* 👈 ensures text starts from left */
-}
-
-.received-message {
-    background-color: #ffffff;
-    color: #000;
-    padding: 4px 8px;
-    border-radius: 12px 12px 12px 0;
-    max-width: 75%;
-    word-wrap: break-word;
-    word-break: break-word;
-    font-size: 11px;
-    line-height: 1.05;
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
-    text-align: left; /* 👈 ensures text starts from left */
-}
-
-
-    #chat-box::-webkit-scrollbar {
-        width: 8px;
+    body {
+        background-color: #e5ddd5;
     }
 
-    #chat-box::-webkit-scrollbar-thumb {
-        background-color: rgba(0, 0, 0, 0.1);
-        border-radius: 10px;
+    .chat-container {
+        max-width: 900px;
+        margin: 20px auto;
+        background: #fefefe;
+        border-radius: 12px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 100px);
+        overflow: hidden;
     }
 
-    @media (max-width: 768px) {
-        .sent-message, .received-message {
-            max-width: 90%;
+    .chat-header {
+        background: #128C7E;
+        color: #fff;
+        padding: 16px 24px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .chat-box {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background-color: #ece5dd;
+    }
+
+    .chat-message {
+        display: flex;
+        margin-bottom: 20px;
+        align-items: flex-end;
+    }
+
+    .chat-message.institute {
+        justify-content: flex-end;
+    }
+
+    .chat-message.admin {
+        justify-content: flex-start;
+    }
+
+    .chat-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: #bbb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        color: #fff;
+        margin: 0 10px;
+        flex-shrink: 0;
+    }
+
+    .chat-bubble {
+        max-width: 75%;
+        padding: 12px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        line-height: 1.5;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+        position: relative;
+        background-color: #ffffff;
+    }
+
+    .chat-message.institute .chat-bubble {
+        background-color: #dcf8c6;
+        border-bottom-right-radius: 4px;
+    }
+
+    .chat-message.admin .chat-bubble {
+        background-color: #ffffff;
+        border-bottom-left-radius: 4px;
+    }
+
+    .chat-meta {
+        font-weight: bold;
+        font-size: 13px;
+        color: #333;
+        margin-bottom: 4px;
+    }
+
+    .chat-time {
+        font-size: 11px;
+        color: #777;
+        margin-top: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .tick {
+        margin-left: 8px;
+        font-size: 14px;
+    }
+
+    .tick.read {
+        color: #34B7F1;
+    }
+
+    .tick.unread {
+        color: gray;
+    }
+
+    .chat-form {
+        padding: 15px 20px;
+        background-color: #fff;
+        border-top: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .chat-form textarea {
+        flex: 1;
+        resize: none;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+    }
+
+    .chat-form textarea:focus {
+        border-color: #128C7E;
+        outline: none;
+    }
+
+    .chat-form .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+
+    .no-messages {
+        text-align: center;
+        color: #777;
+        font-style: italic;
+        padding: 40px 0;
+        font-size: 16px;
+    }
+
+    @media (max-width: 576px) {
+        .chat-bubble {
+            max-width: 100%;
+        }
+
+        .chat-form {
+            flex-direction: column;
+        }
+
+        .chat-form textarea,
+        .chat-form .btn {
+            width: 100%;
+        }
+
+        .chat-container {
+            border-radius: 0;
         }
     }
 </style>
 
+<div class="chat-container">
+    <div class="chat-header">Messages with Admin</div>
+
+    <div class="chat-box" id="chat-box">
+        <!-- {{-- Success and Error Alerts --}}
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif -->
+<!-- 
+        @if ($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif -->
+
+        @forelse($messages as $msg)
+            @php $isSent = !$msg->is_admin; @endphp
+            <div class="chat-message {{ $isSent ? 'institute' : 'admin' }}">
+                <div class="chat-avatar">{{ $isSent ? 'I' : 'A' }}</div>
+                <div class="chat-bubble">
+                    <div class="chat-meta">{{ $isSent ? 'You' : 'Admin' }}</div>
+                <div style="word-wrap: break-word; white-space: pre-wrap;">{{ $msg->message }}</div>
+
+                    <div class="chat-time">
+                        <span>{{ $msg->created_at->timezone('Asia/Kolkata')->format('d M Y, h:i A') }}</span>
+                        @if($isSent)
+                            @if($msg->is_read)
+                                <span class="tick read">&#10003;&#10003;</span>
+                            @else
+                                <span class="tick unread">&#10003;</span>
+                            @endif
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="no-messages">No messages yet.</div>
+        @endforelse
+    </div>
+
+    <form action="{{ route('institute.message.store') }}" method="POST" class="chat-form">
+        @csrf
+        <textarea name="message" required rows="1" placeholder="Type your message...">{{ old('message') }}</textarea>
+        <button type="submit" class="btn btn-success">Send</button>
+    </form>
+</div>
+
 <script>
-    // Auto scroll to bottom
     window.onload = function () {
-        var chatBox = document.getElementById('chat-box');
+        const chatBox = document.getElementById('chat-box');
         chatBox.scrollTop = chatBox.scrollHeight;
     };
 </script>

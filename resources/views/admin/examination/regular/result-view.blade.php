@@ -1,5 +1,4 @@
 @extends('layouts.admin')
-@section('title', "Result – {{ $programName ?? 'Program' }} (Sem {{ $semester }})")
 
 @section('content')
 <div class="container-fluid px-4 py-4">
@@ -13,13 +12,15 @@
         <div class="card-body">
             <form method="POST" action="{{ route('admin.exams.results.download-bulk') }}" target="_blank">
                 @csrf
+                <input type="hidden" name="format" value="html"> {{-- Always HTML view --}}
+                
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Institute</label>
                         <select class="form-select" name="institute_id" required>
                             <option value="">-- Select --</option>
-                            @foreach($institutes as $institute)
-                                <option value="{{ $institute->id }}">{{ $institute->name }}</option>
+                            @foreach($institutes as $inst)
+                                <option value="{{ $inst->id }}">{{ $inst->code }} - {{ $inst->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -44,30 +45,17 @@
                         </select>
                     </div>
 
-                  
-
-
                     <div class="col-md-4">
                         <label class="form-label">Academic Session</label>
-                                      <select class="form-select" name="academic_session_id" required>
-    <option value="">-- Select --</option>
-    @foreach($academicSessions as $academicSession)
-        <option value="{{ $academicSession->id }}">
-    {{ $academicSession->display_name }}
-</option>
-
-    @endforeach
-</select>
-         
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label">Format</label>
-                        <select class="form-select" name="format" required>
-                            <option value="html">PDF</option>
+                        <select class="form-select" name="academic_session_id" required>
+                            <option value="">-- Select --</option>
+                            @foreach($academicSessions as $academicSession)
+                                <option value="{{ $academicSession->id }}">
+                                    {{ $academicSession->display_name }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
-                    
 
                     <div class="col-md-12 text-end mt-3">
                         <button type="submit" class="btn btn-primary">
@@ -87,6 +75,8 @@
         <div class="card-body">
             <form method="POST" action="{{ route('admin.exams.results.download-roll') }}" target="_blank">
                 @csrf
+                <input type="hidden" name="format" value="html"> {{-- Always HTML view --}}
+                
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">NCHM Roll Number</label>
@@ -113,15 +103,14 @@
                         </select>
                     </div>
 
-
-                  
-
                     <div class="col-md-4">
                         <label class="form-label">Academic Session</label>
                         <select class="form-select" name="academic_session_id" required>
                             <option value="">-- Select --</option>
                             @foreach($academicSessions as $academicSession)
-                                <option value="{{ $academicSession->id }}">{{ $academicSession->year }}</option>
+                                <option value="{{ $academicSession->id }}">
+                                    {{ $academicSession->display_name }}
+                                </option>
                             @endforeach
                         </select>
                     </div>

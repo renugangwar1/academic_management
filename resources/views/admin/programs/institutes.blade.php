@@ -48,9 +48,10 @@
                                     value="{{ $institute->id }}" 
                                     id="institute_{{ $institute->id }}"
                                     {{ $mappedInstitutes->contains('id', $institute->id) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="institute_{{ $institute->id }}">
-                                    {{ $institute->name }}
-                                </label>
+                              <label class="form-check-label" for="institute_{{ $institute->id }}">
+   ({{ $institute->code }})  <span class="text-muted">{{ $institute->name }}</span>
+</label>
+
                             </div>
                         @endforeach
                     </div>
@@ -66,28 +67,29 @@
         </div>
     </div>
 
-    {{-- Currently Mapped Institutes --}}
-    <div class="card mb-5 border-0 shadow-sm rounded-4">
-        <div class="card-header bg-primary text-white fw-bold rounded-top-4">
-            Currently Mapped Institutes
-        </div>
-        <div class="card-body">
-            @if($mappedInstitutes->count())
-                <ul class="list-group list-group-flush">
-                    @foreach($mappedInstitutes as $institute)
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span>{{ $institute->name }}</span>
-                            <span class="badge bg-success rounded-pill">Mapped</span>
-                        </li>
-                    @endforeach
-                </ul>
-            @else
-                <div class="alert alert-warning mb-0" role="alert">
-                    No institutes currently mapped to this program.
-                </div>
-            @endif
-        </div>
+   {{-- Currently Mapped Institutes --}}
+<div class="card mb-5 border-0 shadow-sm rounded-4">
+    <div class="card-header bg-primary text-white fw-bold rounded-top-4">
+        Currently Mapped Institutes
     </div>
+    <div class="card-body">
+        @if($mappedInstitutes->count())
+            <ul class="list-group list-group-flush">
+                @foreach($mappedInstitutes as $institute)
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ $institute->code }} - {{ $institute->name }}</span>
+                        <span class="badge bg-success rounded-pill">Mapped</span>
+                    </li>
+                @endforeach
+            </ul>
+        @else
+            <div class="alert alert-warning mb-0" role="alert">
+                No institutes currently mapped to this program.
+            </div>
+        @endif
+    </div>
+</div>
+
 </div>
 
 {{-- Scripts --}}

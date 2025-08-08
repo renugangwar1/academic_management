@@ -58,7 +58,7 @@
         .summary-table th, .summary-table td {
             border: 1px solid #000;
             padding: 5px;
-            text-align: center;
+            text-align: left;
         }
 
         .section-header {
@@ -176,7 +176,7 @@
                 <tr>
                     <td>{{ $r->course->course_code }}</td>
                     <td>{{ $r->course->course_title }}</td>
-                    <td>{{ $r->credit_value }}</td>
+                    <td>{{ $r->course->credit_value }}</td>
                     <td>{{ $r->grade_letter }}</td>
                 </tr>
             @endforeach

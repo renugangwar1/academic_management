@@ -3,8 +3,24 @@
 
 @section('content')
 <div class="container-fluid px-4 py-4">
-    <h3 class="mb-4">All Calculated Results (Regular)</h3>
 
+    {{-- 🔷 Card Wrapper --}}
+    <div class="card shadow-sm border-0 mb-4 rounded-4">
+        <div class="card-body">
+
+            <div class="row align-items-end g-3">
+
+                {{-- 🔹 Left: Title --}}
+                <div class="col-lg-6 col-md-12">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-1">All Calculated Results (Regular)</h3>
+                        <p class="text-muted small mb-0">View and manage all calculated regular student results.</p>
+                    </div>
+                </div>
+
+   </div>
+   </div>
+     </div>
     {{-- ✅ Flash Messages --}}
     @foreach (['success', 'error', 'warning'] as $msg)
         @if(session($msg))
@@ -16,7 +32,7 @@
     @endforeach
 
     <table class="table table-bordered table-hover">
-        <thead class="table-light">
+        <thead class="table-dark">
             <tr>
                 <th>#</th>
                 <th>Program</th>

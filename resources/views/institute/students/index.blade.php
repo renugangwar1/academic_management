@@ -52,6 +52,48 @@
             </div>
         </div>
 
+
+        
+{{-- Uploaded Files List --}}
+@if($uploads->count())
+    <div class="mt-5">
+        <h4 class="fw-bold mb-3 text-center text-secondary">📂 Uploaded Files & Status</h4>
+        <div class="table-responsive shadow rounded">
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark text-center">
+                    <tr>
+                        <th>#</th>
+                        <th>File Name</th>
+                        <th>Uploaded On</th>
+                        <th>Status</th>
+                   
+                    
+                    </tr>
+                </thead>
+                <tbody class="text-center">
+                    @foreach($uploads as $index => $upload)
+                        <tr>
+                            <td>{{ $index + 1 }}</td>
+                            <td>{{ basename($upload->file_path) }}</td>
+                            <td>{{ $upload->created_at->format('d M Y, h:i A') }}</td>
+                            <td>
+                                @if($upload->status === 'approved')
+                                    <span class="badge bg-success">Approved</span>
+                                @elseif($upload->status === 'rejected')
+                                    <span class="badge bg-danger">Rejected</span>
+                                @else
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                @endif
+                            </td>
+                           
+                           
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+@endif
     </div>
 </div>
 @endsection

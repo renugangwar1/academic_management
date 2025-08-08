@@ -22,6 +22,8 @@ use App\Http\Controllers\Institute\StudentController as InstituteStudentControll
 use App\Http\Controllers\Institute\MessageController;
 use App\Http\Controllers\Admin\MessageController as AdminMessageController;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\Institute\AdmitCardController as InstituteAdmitCardController;
+use App\Http\Controllers\Institute\ExaminationController as InstituteExaminationController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -150,8 +152,20 @@ Route::post('/admitcard/reappear/bulk', [ReappearController::class, 'downloadBul
 Route::get('/messages', [App\Http\Controllers\Admin\MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/chat/{institute_id}', [App\Http\Controllers\Admin\MessageController::class, 'chat'])->name('messages.chat');
 Route::post('/messages/{id}/reply', [App\Http\Controllers\Admin\MessageController::class, 'reply'])->name('messages.reply');
+Route::post('/messages/send', [App\Http\Controllers\Admin\MessageController::class, 'send'])
+    ->name('messages.send');
 
 Route::post('/exam/set-session', [ExaminationController::class, 'setExamSession'])->name('exam.setSession');
+
+
+// routes/admin.php
+Route::get('/exams/results/download', [ResultsController::class, 'downloadView'])->name('results.download');
+
+
+ Route::get('/calendar', [App\Http\Controllers\Admin\CalendarController::class, 'index'])->name('calendar.index');
+ Route::get('/calendar/events', [\App\Http\Controllers\Admin\CalendarController::class, 'fetchEvents']);
+    Route::post('/calendar/events', [\App\Http\Controllers\Admin\CalendarController::class, 'storeEvent']);
+
 
 /* ────────────── REGULAR ROUTES ────────────── */
 Route::prefix('regular')->as('regular.')->group(function () {
@@ -280,7 +294,7 @@ Route::middleware(['auth', 'role:institute'])
     ->as('institute.')
     ->group(function () {
         Route::get('dashboard', [InstituteDashboardController::class, 'index'])->name('dashboard');
-        Route::get('/examinations', [InstituteDashboardController::class, 'examinations'])->name('examinations');
+      Route::get('/examinations-dashboard', [InstituteDashboardController::class, 'examinations'])->name('examinations.dashboard');
         Route::get('/reappears', [InstituteDashboardController::class, 'reappears'])->name('reappears');
         
         Route::get('/programs', [\App\Http\Controllers\Institute\ProgramController::class, 'index'])->name('programs.index');
@@ -296,13 +310,29 @@ Route::middleware(['auth', 'role:institute'])
         Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');
 
  Route::get('message', [MessageController::class, 'create'])->name('message.index'); // optional alias
+ 
+
 
         Route::post('message', [MessageController::class, 'store'])->name('message.store');
         Route::get('message/create', [MessageController::class, 'create'])->name('message.create');
 Route::get('/students/list', [InstituteStudentController::class, 'showEnrolledStudents'])
     ->name('students.list');
-Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');    });
+Route::get('/students/export', [InstituteStudentController::class, 'export'])->name('students.export');    
 
+ Route::get('/examinations', [InstituteExaminationController::class, 'overview'])->name('examinations.overview');
+
+    // Admit Card section
+    Route::get('/admitcards', [InstituteAdmitCardController::class, 'index'])->name('admitcards.index');
+
+    // Examination section
+    Route::get('/examination', [InstituteExaminationController::class, 'index'])->name('examination.index');
+
+  Route::post('/admitcards/bulk', [InstituteAdmitCardController::class, 'bulkDownload'])->name('admitcard.bulk');
+    Route::post('/admitcards/single', [InstituteAdmitCardController::class, 'singleDownload'])->name('admitcard.single');
+
+
+});
+ 
 //  Route::middleware(['auth:institute'])
 //     ->prefix('institute')
 //     ->as('institute.')
